@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tox Zero Scanner</title>
+<meta name="description" content="Scan a beauty product. See if it meets the Tox Zero standard, and the swap if it doesn't.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#092C21">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tox Zero">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="bar">
+  <a class="mark" href="#/" aria-label="Tox Zero Scanner home"><img src="icons/icon-192.png" alt=""><span>TOX ZERO</span></a>
+  <nav>
+    <a href="#/standard">the standard</a>
+    <a href="#/vet" class="vetlink">vet list <b id="vetCount">0</b></a>
+  </nav>
+</header>
+
+<main id="app">
+  <!-- home -->
+  <section id="home" class="view">
+    <h1 class="title">scan.</h1>
+    <p class="sub">Any beauty barcode. Only Andra's guide approves.</p>
+
+    <div class="finder" id="finder">
+      <video id="video" playsinline muted></video>
+      <div class="reticle" aria-hidden="true"><i></i></div>
+      <button class="pill solid" id="startBtn" type="button">Start scanning</button>
+      <button class="pill ghost small" id="stopBtn" type="button" hidden>Stop</button>
+      <p class="camMsg" id="camMsg" hidden></p>
+    </div>
+
+    <div class="row">
+      <label class="pill ghost" for="photoInput">Photo of a barcode</label>
+      <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
+      <button class="pill ghost" id="typeBtn" type="button">Type the number</button>
+    </div>
+    <form class="codeForm" id="codeForm" hidden>
+      <input id="codeInput" inputmode="numeric" pattern="[0-9 ]*" placeholder="EAN / UPC digits" aria-label="Barcode number" autocomplete="off">
+      <button class="pill solid small" type="submit">Check</button>
+    </form>
+
+    <form class="search" id="searchForm" role="search">
+      <input id="searchInput" type="search" placeholder="Or search by name — brand, product, shelf" aria-label="Search by name" autocomplete="off">
+    </form>
+
+    <div class="demo">
+      <p class="label">NO PRODUCT HANDY? REAL BARCODES:</p>
+      <div class="chips">
+        <button type="button" data-code="0812154030013">Native deodorant</button>
+        <button type="button" data-code="0077326470176">Tom's toothpaste</button>
+        <button type="button" data-code="0634084028010">Badger Baby Balm</button>
+        <button type="button" data-code="0634084331646">Badger lip balm</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- result / search / standard / vet render here -->
+  <section id="panel" class="view" hidden></section>
+</main>
+
+<footer class="foot">
+  <p>Approvals come only from the Tox Zero guide. Product data from <a href="https://world.openbeautyfacts.org" target="_blank" rel="noopener">Open Beauty Facts</a>, available under the <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">Open Database License</a>.</p>
+</footer>
+
+<div class="busy" id="busy" hidden><span></span></div>
+
+<script src="vendor/zxing-library-0.21.3.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

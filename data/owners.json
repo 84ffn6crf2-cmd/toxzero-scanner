@@ -1,0 +1,53 @@
+{
+ "_about": "Fake-Clean Reject Rule test 1 (dirty money), .claude/rules/brand-values.md. Conglomerates named in the rule plus the ones the guide itself names (Toss List, Wall of Claim). Private equity fails unless the firm clears the good-owner bar. Years only where the acquisition date is well documented. Hand-maintained; edit here, never in app code.",
+ "owners": {
+  "unilever": "Unilever",
+  "pg": "Procter & Gamble",
+  "colgate": "Colgate-Palmolive",
+  "loreal": "L'Oréal",
+  "esteelauder": "Estée Lauder",
+  "kenvue": "Kenvue (formerly Johnson & Johnson)",
+  "lvmh": "LVMH",
+  "scjohnson": "SC Johnson",
+  "clorox": "Clorox",
+  "churchdwight": "Church & Dwight",
+  "edgewell": "Edgewell",
+  "beiersdorf": "Beiersdorf",
+  "henkel": "Henkel",
+  "shiseido": "Shiseido",
+  "coty": "Coty",
+  "kao": "Kao",
+  "walmart": "Walmart",
+  "amorepacific": "Amorepacific",
+  "famillec": "Famille C (the Clarins family)",
+  "mosaic": "Mosaic Brands (private equity)",
+  "sfep": "San Francisco Equity Partners (private equity)"
+ },
+ "brands": {
+  "unilever": {"Dove": null, "Axe": null, "Lynx": null, "Degree": null, "Rexona": null, "Vaseline": null, "Pond's": null, "Simple": null, "St. Ives": null, "TRESemmé": null, "Nexxus": null, "Suave": null, "Q-tips": null, "Caress": null, "Lever 2000": null, "Lux": null, "Sunsilk": null, "Clear": null, "Toni & Guy": null, "Love Beauty and Planet": null, "Schmidt's": 2017, "Schmidt's Naturals": 2017, "SheaMoisture": 2017, "Shea Moisture": 2017, "Nubian Heritage": 2017, "Seventh Generation": 2016, "Tatcha": 2019, "Paula's Choice": 2021, "Dermalogica": 2015, "Murad": 2015, "Kate Somerville": 2015, "Hourglass": 2017, "Dr. Squatch": 2025, "Wild": 2025},
+  "pg": {"Olay": null, "Native": 2017, "Secret": null, "Old Spice": null, "Gillette": null, "Venus": null, "Pantene": null, "Head & Shoulders": null, "Herbal Essences": null, "Aussie": null, "Crest": null, "Oral-B": null, "SK-II": null, "First Aid Beauty": 2018, "Tula": 2022, "Mielle": 2023, "Mielle Organics": 2023, "Ouai": 2021, "Safeguard": null, "Ivory": null, "Always": null, "Tampax": null, "Bevel": 2018, "Infusium": null, "Braun": null},
+  "colgate": {"Colgate": null, "Tom's of Maine": 2006, "Hello": 2020, "Hello Products": 2020, "Palmolive": null, "Irish Spring": null, "Speed Stick": null, "Lady Speed Stick": null, "Softsoap": null, "Sanex": null, "EltaMD": 2016, "PCA Skin": 2019, "Filorga": 2019, "Elmex": null, "Meridol": null},
+  "loreal": {"L'Oréal Paris": null, "L'Oreal": null, "Garnier": null, "Maybelline": null, "Maybelline New York": null, "NYX": null, "NYX Professional Makeup": null, "CeraVe": 2017, "La Roche-Posay": null, "Vichy": null, "SkinCeuticals": null, "Kiehl's": null, "Lancôme": null, "Youth To The People": 2021, "Thayers": 2020, "Essie": null, "Urban Decay": null, "IT Cosmetics": 2016, "Redken": null, "Matrix": null, "Kérastase": null, "Pureology": null, "Biolage": null, "Carol's Daughter": null, "Mizani": null, "Dermablend": null, "Aesop": 2023, "Takami": null, "Biotherm": null, "Helena Rubinstein": null, "Yves Saint Laurent": null, "YSL Beauty": null, "Giorgio Armani Beauty": null, "Valentino Beauty": null, "Prada Beauty": null, "Mugler": null, "Azzaro": null, "Shu Uemura": null, "Decléor": null, "Mixa": null, "SoftSheen-Carson": null, "Dark and Lovely": null},
+  "esteelauder": {"Estée Lauder": null, "Clinique": null, "Origins": null, "Aveda": null, "Bobbi Brown": null, "MAC": null, "M·A·C": null, "La Mer": null, "Too Faced": 2016, "Smashbox": null, "Tom Ford Beauty": null, "Le Labo": 2014, "Jo Malone": null, "Jo Malone London": null, "Glamglow": null, "Dr. Jart+": 2019, "The Ordinary": 2021, "Deciem": 2021, "NIOD": 2021, "Bumble and bumble": null, "Aerin": null, "Kilian": null, "Darphin": null, "Lab Series": null},
+  "kenvue": {"Neutrogena": null, "Aveeno": null, "Johnson's": null, "Johnson's Baby": null, "Johnson & Johnson": null, "Listerine": null, "OGX": 2016, "Clean & Clear": null, "Lubriderm": null, "Maui Moisture": null, "Le Petit Marseillais": null, "Rogaine": null, "Desitin": null, "Band-Aid": null, "Dr.Ci:Labo": null},
+  "lvmh": {"Dior": null, "Guerlain": null, "Givenchy": null, "Benefit": null, "Benefit Cosmetics": null, "Fresh": null, "Make Up For Ever": null, "Fenty Beauty": null, "Fenty Skin": null, "Ole Henriksen": null, "Acqua di Parma": null, "Maison Francis Kurkdjian": null, "Sephora Collection": null},
+  "scjohnson": {"Mrs. Meyer's": 2008, "Mrs. Meyer's Clean Day": 2008, "Method": 2017, "Ecover": 2017, "Babyganics": 2016, "Ziploc": null, "Windex": null, "Glade": null, "OFF!": null, "Scrubbing Bubbles": null, "Shout": null},
+  "clorox": {"Burt's Bees": 2007, "Clorox": null, "Pine-Sol": null, "Brita": null, "Green Works": null},
+  "churchdwight": {"Arm & Hammer": null, "TheraBreath": 2021, "Hero Cosmetics": 2022, "Mighty Patch": 2022, "Batiste": null, "Waterpik": null, "Viviscal": null, "Nair": null, "Toppik": null, "Orajel": null, "OxiClean": null, "Femfresh": null},
+  "edgewell": {"Schick": null, "Billie": 2021, "Banana Boat": null, "Hawaiian Tropic": null, "Playtex": null, "o.b.": null, "Stayfree": null, "Carefree": null, "Wet Ones": null, "Edge": null, "Skintimate": null, "Jack Black": 2018, "Cremo": 2023, "Bulldog": 2019, "Wilkinson Sword": null},
+  "beiersdorf": {"Nivea": null, "Eucerin": null, "Aquaphor": null, "Coppertone": 2019, "La Prairie": null, "Labello": null, "Florena": null},
+  "henkel": {"Schwarzkopf": null, "Dial": null, "Right Guard": null, "Dry Idea": null, "Got2b": null, "Joico": null, "Persil": null, "Purex": null, "Snuggle": null, "Tone": null},
+  "shiseido": {"Shiseido": null, "Drunk Elephant": 2019, "NARS": null, "Clé de Peau Beauté": null, "Anessa": null, "Elixir": null, "IPSA": null, "Dr. Dennis Gross": 2024},
+  "coty": {"CoverGirl": null, "Covergirl": null, "Rimmel": null, "Rimmel London": null, "Sally Hansen": null, "Max Factor": null, "Kylie Cosmetics": 2020, "Philosophy": null, "Lancaster": null},
+  "kao": {"Jergens": null, "Bioré": null, "Biore": null, "Curél": null, "Curel": null, "John Frieda": null, "Molton Brown": null, "Ban": null, "Oribe": 2017, "Kanebo": null, "Goldwell": null},
+  "walmart": {"Equate": null},
+  "amorepacific": {"Laneige": null, "Sulwhasoo": null, "Innisfree": null, "Etude": null, "Etude House": null, "Mamonde": null, "Tata Harper": 2022},
+  "famillec": {"Clarins": null, "ILIA": 2022, "ILIA Beauty": 2022, "Pai Skincare": 2023},
+  "mosaic": {"Acure": null},
+  "sfep": {"Jane Iredale": null}
+ },
+ "pass": {
+  "INIKA Organic": {"owner": "Total Beauty Network", "note": "No longer founder-owned. The owner passes the Tox Zero good-owner test: founder-owned, Shop Ethical! B−, no controversies."},
+  "INIKA": {"owner": "Total Beauty Network", "note": "No longer founder-owned. The owner passes the Tox Zero good-owner test: founder-owned, Shop Ethical! B−, no controversies."}
+ }
+}
