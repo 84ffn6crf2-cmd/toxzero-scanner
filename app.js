@@ -2,7 +2,7 @@
 import { buildData, evaluate, fromOBF, normCode, searchPicks, swapsFor, scanIngredients, INGREDIENT_RULES } from "./engine.js";
 
 const OBF = "https://world.openbeautyfacts.org";
-const FIELDS = "code,product_name,product_name_en,generic_name,brands,ingredients_text,ingredients_text_en,packaging,packaging_tags,categories_tags,image_front_small_url";
+const FIELDS = "code,product_name,product_name_en,generic_name,brands,ingredients_text,ingredients_text_en,packaging,packaging_tags,packagings,categories_tags,image_front_small_url";
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const cache = new Map();   // code -> normalized product (from search results or earlier lookups)
@@ -127,6 +127,9 @@ function reasonsList(reasons) {
     ${r.match ? `<span class="on">On the label: ${esc(r.match)}</span>` : ""}
     <p>${esc(r.detail)}</p></li>`).join("")}</ul>`;
 }
+// The two lines that set Tox Zero apart: what's in it AND what it's in, side by side on every result.
+const scorecard = (c) => c ? `<div class="card2">${[c.ingredients, c.packaging].map((x) => `<div class="tile ${x.status}">
+    <span class="t">${esc(x.title)}</span><span class="w">${esc(x.word)}</span><span class="d">${esc(x.detail)}</span></div>`).join("")}</div>` : "";
 const notesList = (notes) => notes.length
   ? `<ul class="notes">${notes.map((n) => `<li><b>${esc(n.label)}</b>${esc(n.detail)}</li>`).join("")}</ul>` : "";
 
@@ -157,9 +160,9 @@ function renderResult(r) {
       <div class="verdict pick">
         <span class="heart">❤︎</span><h2>Tox Zero pick.</h2>
         <p class="lede">${esc(k.name)}. In Andra's guide: ${esc(k.section)} · ${esc(k.category)}.</p>
+        ${scorecard(r.card)}
         <dl class="facts">
           ${k.why ? `<dt>WHY</dt><dd>${esc(k.why)}</dd>` : ""}
-          ${k.packaging ? `<dt>PACKAGING</dt><dd>${esc(k.packaging)}</dd>` : ""}
           ${r.variant ? `<dt>VARIANT</dt><dd>${esc(r.variant)}</dd>` : ""}
           ${k.price ? `<dt>PRICE</dt><dd>${esc(k.price)}</dd>` : ""}
         </dl>
@@ -175,6 +178,7 @@ function renderResult(r) {
       <div class="verdict flagged">
         <h2>Flagged.</h2>
         <p class="lede">Fails the Tox Zero standard on ${n} count${n > 1 ? "s" : ""}.</p>
+        ${scorecard(r.card)}
         ${reasonsList(r.reasons)}${notesList(r.notes)}
       </div>
       ${lookalikeBlock(r)}
@@ -193,6 +197,7 @@ function renderResult(r) {
       <p class="lede">${nothing
         ? "This barcode isn't in Open Beauty Facts yet, so there's nothing to check."
         : "Andra hasn't vetted this one. Nothing on file tripped a flag, and that's not a pass: only the guide approves."}</p>
+      ${scorecard(r.card)}
       ${notesList(r.notes)}
       <p class="lede" style="margin-top:12px"><b>Added to the vet list.</b></p>
     </div>
@@ -271,8 +276,8 @@ function routeStandard() {
       <li><b>Who gets the money.</b> Owned by a conglomerate that profits from the products the guide replaces, or on the guide's Wall of Claim. Good owners pass.</li>
       <li><b>Packaging.</b> A fatty formula in plastic pulls the plastic's additives into the product. Plastic on a consumable flags when the guide has a plastic-free pick for that shelf. Buy-it-for-life tools never get a plastic flag.</li>
     </ol>
-    <p class="label">WHAT AN INGREDIENT SCORE MISSES</p>
-    <p class="sub" style="text-align:left">Who owns the brand. Whether the packaging leaches into the formula. Whether it's zero waste. Tox Zero checks all three, and every yes is a human call.</p>
+    <p class="label">PACKAGING IS PART OF THE FORMULA</p>
+    <p class="sub" style="text-align:left">Every result rates two things side by side: what's in it, and what it's in. Plastic holding an oily formula leaches into the product, so packaging is a health line, not a footnote. End of life shows only when it's on record; otherwise it says not verified. Add who owns the brand, and every yes is a human call.</p>
     <div class="stats">
       <div><b>${data.picks.length}</b><span>guide picks</span></div>
       <div><b>${Object.keys(data.barcodes).length}</b><span>barcodes confirmed with brands</span></div>

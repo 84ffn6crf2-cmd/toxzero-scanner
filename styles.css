@@ -113,6 +113,14 @@ main { max-width: 560px; margin: 0 auto; padding: 0 16px 24px; }
 .verdict.flagged h2, .verdict.flagged .accent { color: var(--coral); }
 .heart { font-family: var(--display); font-size: 26px; color: var(--pink); display: block; line-height: 1; margin-bottom: 4px; }
 
+.card2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 2px; }
+.tile { display: flex; flex-direction: column; gap: 3px; padding: 12px 12px 13px; border-radius: 14px; border: 1px solid var(--line); background: rgba(6, 31, 23, .35); min-width: 0; }
+.tile .t { font-family: var(--ui); font-size: 10px; font-weight: 700; letter-spacing: .16em; color: var(--cream-faint); }
+.tile .w { font-family: var(--display); font-weight: 700; font-size: 21px; line-height: 1.1; }
+.tile .d { font-size: 14px; line-height: 1.35; color: var(--cream-dim); overflow-wrap: anywhere; }
+.tile.fail .w { color: var(--coral); }
+.tile.pass .w { color: var(--pink); }
+.tile.unknown .w { color: var(--cream-faint); }
 .reasons { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; }
 .reasons li { padding-top: 12px; border-top: 1px solid var(--line); }
 .reasons .what { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }

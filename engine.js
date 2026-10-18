@@ -236,13 +236,71 @@ export function packagingReasons(product, tokens, shelf, picks) {
   if (bifl || !PLASTIC.test(pkg)) return { reasons: out, plastic: PLASTIC.test(pkg), bifl };
   const fatty = tokens.slice(0, 3).some((t) => FATTY.test(t)) || FATTY_FORMAT.test(product.name || "");
   if (fatty) {
-    out.push({ type: "packaging", label: "Fatty formula in plastic", tier: "hard",
-      detail: "Oils and waxes pull plastic additives (2,4-DTBP, benzophenone) out of the container and into the product." });
+    out.push({ type: "packaging", label: "Plastic holding an oily formula", tier: "hard",
+      detail: "Packaging is part of the formula. Oils and waxes pull plastic additives (2,4-DTBP, benzophenone) out of the container and into the product." });
   } else if (shelf && shelfPicks(shelf, picks).some((p) => !p.plastic && !p.plastic_part)) {
     out.push({ type: "packaging", label: "Plastic packaging", tier: "hard",
       detail: `The guide has plastic-free picks for ${shelf.label.toLowerCase()}.` });
   }
   return { reasons: out, plastic: true, bifl };
+}
+
+// ── scorecard: every result rates BOTH what's in it and what it's in ──────────
+// Packaging is part of the formula: plastic holding an oily formula is a health problem (leaching),
+// not only a waste problem. End-of-life wording follows the guide's Packaging Cell Format Rule, and
+// is shown only when a source records it. Missing data says "not verified"; it never guesses.
+// status: "pass" (guide-vetted) · "fail" · "warn" (⚠ PLASTIC, not zero waste) · "clear" (no flags, not a pass) · "unknown"
+const MATERIALS = [
+  ["Aerosol", /aerosol/i],
+  ["Plastic", PLASTIC],
+  ["Glass", /glass|verre|\bglas\b|vidrio/i],
+  ["Metal", /alumin|metal|steel|\btin\b|acier/i],
+  ["Paper", /paper|cardboard|carton|papier/i],
+];
+const SHAPE = /\b(tube|bottle|jar|stick|pump|can|box|pot|pouch|tin|dropper|bouteille|flacon|tube)\b/i;
+const EOL = { "en:recycle": "recyclable", "en:reuse": "reusable", "en:return-to-store": "return program",
+  "en:compost": "compostable", "en:discard": "trash" };
+
+function ingredientsLine(r, tokens) {
+  if (r.verdict === "pick") {
+    const cell = r.pick.ingredients || "";
+    const made = /^\d+(\s|$|\s*\+)/.test(cell) ? `${cell.match(/^\d+/)[0]} ingredients${cell.replace(/^\d+/, "").trim() ? ` · ${cell.replace(/^\d+\s*/, "")}` : ""}` : cell;
+    return { title: /^\d/.test(cell) || !cell ? "INGREDIENTS" : "MADE OF", status: "pass", word: "Vetted", detail: made ? `${made}. In Andra's guide.` : "In Andra's guide." };
+  }
+  const bad = r.reasons.filter((x) => x.type === "ingredient");
+  if (bad.length) {
+    const names = bad.map((x) => x.match);
+    return { title: "INGREDIENTS", status: "fail", word: "Fails",
+      detail: names.slice(0, 2).join(", ") + (names.length > 2 ? ` + ${names.length - 2} more` : "") };
+  }
+  if (!tokens.length) return { title: "INGREDIENTS", status: "unknown", word: "Not verified", detail: "No label on file." };
+  const heads = r.notes.filter((x) => x.type === "ingredient").map((x) => x.label);
+  return { title: "INGREDIENTS", status: "clear", word: "No flags",
+    detail: `${tokens.length} checked. Not a pass.${heads.length ? ` Heads-up: ${heads.join(", ")}.` : ""}` };
+}
+
+function packagingLine(r, product, bifl) {
+  if (r.verdict === "pick") {
+    const k = r.pick, text = String(k.packaging || "").replace(/⟡\s*/g, "");
+    if (/bifl/i.test(text) || bifl) return { title: "PACKAGING", status: "pass", word: "BIFL", detail: text || "Buy it for life." };
+    if (k.plastic) return { title: "PACKAGING", status: "warn", word: "⚠ PLASTIC", detail: `${text}. The formula earned the spot; the packaging didn't.` };
+    return { title: "PACKAGING", status: "pass", word: "Vetted", detail: text || "Vetted with the product." };
+  }
+  const parts = product.packagings || [];
+  const hay = `${product.packaging || ""} ${parts.map((x) => `${x.material || ""} ${x.shape || ""}`).join(" ")}`.replace(/en:|fr:|-/g, " ");
+  const material = (MATERIALS.find(([, re]) => re.test(hay)) || [])[0];
+  const shape = (hay.match(SHAPE) || [])[1];
+  const eol = [...new Set(parts.map((x) => EOL[x.recycling]).filter(Boolean))].join(" / ");
+  const what = [material, shape && shape.toLowerCase().replace("bouteille", "bottle").replace("flacon", "bottle")].filter(Boolean).join(" ");
+  const pkgReason = r.reasons.find((x) => x.type === "packaging");
+  if (pkgReason) return { title: "PACKAGING", status: "fail", word: "Fails", detail: pkgReason.label };
+  if (!material) return { title: "PACKAGING", status: "unknown", word: "Not verified",
+    detail: shape ? `On file: ${what}. Material not recorded.` : "Nothing on file." };
+  const end = eol ? `End of life: ${eol}.` : "End of life not verified.";
+  if (material === "Plastic") return bifl
+    ? { title: "PACKAGING", status: "clear", word: "BIFL", detail: "Plastic on a buy-it-for-life tool is a one-time cost." }
+    : { title: "PACKAGING", status: "warn", word: "⚠ PLASTIC", detail: `${what}. A consumable in plastic: not zero waste. ${end}` };
+  return { title: "PACKAGING", status: "clear", word: "No flags", detail: `${what}. ${end}` };
 }
 
 // ── picks + swaps ────────────────────────────────────────────────────────────
@@ -304,6 +362,7 @@ export function fromOBF(json) {
     brands: String(p.brands || "").split(",").map((s) => s.trim()).filter(Boolean),
     ingredients: p.ingredients_text_en || p.ingredients_text || "",
     packaging: [...(p.packaging_tags || []), p.packaging || ""].join(" "),
+    packagings: (p.packagings || []).map((x) => ({ material: x.material, shape: x.shape, recycling: x.recycling })),
     categories: (p.categories_tags || []).join(" "),
     image: p.image_front_small_url || null,
     source: "obf",
@@ -317,10 +376,10 @@ export function evaluate(product, data) {
   const hit = code && data.barcodes[code];
   if (hit && data.picksById[hit.pick]) {
     const pick = data.picksById[hit.pick];
-    return { verdict: "pick", product, pick, variant: hit.variant, reasons: [], notes: pickNotes(pick), swaps: [] };
+    return withCard({ verdict: "pick", product, pick, variant: hit.variant, reasons: [], notes: pickNotes(pick), swaps: [] });
   }
   if (product.pick) {  // chosen from guide search
-    return { verdict: "pick", product, pick: product.pick, reasons: [], notes: pickNotes(product.pick), swaps: [] };
+    return withCard({ verdict: "pick", product, pick: product.pick, reasons: [], notes: pickNotes(product.pick), swaps: [] });
   }
 
   const { tokens, hits } = scanIngredients(product.ingredients);
@@ -345,11 +404,14 @@ export function evaluate(product, data) {
 
   const lookalikes = lookalikePicks(product, data.picks);
   if (reasons.length) {
-    return { verdict: "flagged", product, shelf, reasons, notes, swaps: swapsFor(shelf, data.picks), lookalikes };
+    return withCard({ verdict: "flagged", product, shelf, reasons, notes, swaps: swapsFor(shelf, data.picks), lookalikes }, tokens, pk.bifl);
   }
-  if (!tokens.length) notes.push({ type: "data", label: "No ingredient list on file", detail: "Open Beauty Facts doesn't have the label for this one yet, so nothing could be checked." });
-  if (pk.plastic && !pk.bifl) notes.push({ type: "packaging", label: "⚠ Plastic packaging", detail: "A consumable in plastic: not zero waste." });
-  return { verdict: "unvetted", product, shelf, reasons: [], notes, swaps: [], lookalikes };
+  return withCard({ verdict: "unvetted", product, shelf, reasons: [], notes, swaps: [], lookalikes }, tokens, pk.bifl);
+}
+
+function withCard(r, tokens = [], bifl = false) {
+  r.card = { ingredients: ingredientsLine(r, tokens), packaging: packagingLine(r, r.product, bifl) };
+  return r;
 }
 
 function pickNotes(pick) {
