@@ -58,7 +58,7 @@ main { max-width: 560px; margin: 0 auto; padding: 0 16px 20px; }
 
 /* viewfinder */
 .finder { position: relative; aspect-ratio: 4 / 3; border-radius: 22px; overflow: hidden; display: grid; place-items: center; }
-.finder video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s; }
+.finder video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s; pointer-events: none; }
 .finder.live video { opacity: 1; }
 .reticle { position: absolute; inset: 26% 13%; border: 2px solid rgba(255, 255, 255, .85); border-radius: 14px; pointer-events: none; }
 .reticle i { position: absolute; left: 6%; right: 6%; top: 50%; height: 2px; background: var(--ink); opacity: 0; border-radius: 2px; }
@@ -319,5 +319,7 @@ button.irow { cursor: pointer; font-weight: 700; }
 .intake .chip { position: relative; }
 .intake .chip input { position: absolute; opacity: 0; pointer-events: none; }
 .intake .chip:has(input:checked) { background: var(--ink); color: #fff; border-color: transparent; }
+.intake .tick { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: var(--ink); margin: 2px 0 12px; cursor: pointer; }
+.intake .tick input { width: 20px; height: 20px; margin: 0; accent-color: var(--ink); }
 
 .toast { position: fixed; left: 50%; top: calc(12px + env(safe-area-inset-top)); transform: translateX(-50%); z-index: 40; padding: 10px 16px; border-radius: 999px; font-size: 14px; font-weight: 700; color: var(--ink); text-decoration: none; background: rgba(255, 255, 255, .8); animation: rise .25s ease both; white-space: nowrap; }

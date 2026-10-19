@@ -1,5 +1,5 @@
 // Offline shell: app files + guide data are cached; Open Beauty Facts lookups always go to the network.
-const VERSION = "tz-scanner-v10";
+const VERSION = "tz-scanner-v11";
 const SHELL = [
   "./", "index.html", "styles.css", "app.js", "engine.js", "manifest.webmanifest",
   "vendor/zxing-library-0.21.3.min.js",
@@ -20,7 +20,7 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== location.origin) return;
   // network first so a redeploy shows up; cache when offline
-  e.respondWith(fetch(e.request).then((res) => {
+  e.respondWith(fetch(e.request, { cache: "no-cache" }).then((res) => {
     const copy = res.clone();
     caches.open(VERSION).then((c) => c.put(e.request, copy));
     return res;

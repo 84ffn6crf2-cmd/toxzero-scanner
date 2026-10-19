@@ -91,11 +91,13 @@ async function startCamera() {
   try {
     scanning = true;
     $("#startBtn").hidden = true; $("#stopBtn").hidden = false; finder.classList.add("live");
+    msg.textContent = "Your phone's about to ask for the camera. Tap Allow."; msg.hidden = false;
     await reader.decodeFromConstraints(
       { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
       $("#video"),
       (result) => { if (result && scanning) { navigator.vibrate?.(40); stopCamera(); go(`#/p/${normCode(result.getText())}`); } },
     );
+    msg.hidden = true;
   } catch (e) {
     stopCamera();
     msg.textContent = e && e.name === "NotAllowedError" ? "Camera is off. Allow it in Settings, or use Photo." : "Camera didn't start. Try Photo.";
@@ -308,7 +310,7 @@ function renderResult(r) {
   const shelfSwaps = r.shelf ? swapsFor(r.shelf, data.picks, 3) : [];
   openSheet(`${peek(r, p.name || "Unknown product", brand || (nothing ? p.code : ""), p.image)}${checked}
     <p class="note">${nothing ? "Not in Open Beauty Facts yet." : "No flags isn't a yes."}</p>
-    ${submitted(p.code) ? `<div class="helpvet glass"><b>${icon("check")} In the vet queue.</b><span>Once it's scored, everyone who scans it sees the result.</span></div>`
+    ${submitted(p.code) ? `<div class="helpvet glass"><b>${icon("check")} Score's on the way.</b><span>You sent this one in. Once it's scored, everyone who scans it sees the result.</span></div>`
       : `<div class="helpvet glass"><b>want it vetted?</b><span>Snap the front and the ingredient list. We'll score it, and the next person who scans it sees the result.</span>
       <button class="pill navy" type="button" data-intake="${esc(p.code || "")}">${icon("camera")}Yes, vet it</button></div>`}
     ${r.lookalikes?.length ? `<ul class="list">${r.lookalikes.map((k) => `<li><button class="item glass" type="button" onclick="location.hash='#/g/${esc(k.id)}'">
@@ -433,8 +435,10 @@ async function shrink(file, max = 900) {
   c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
   return c.toDataURL("image/jpeg", .72);
 }
+const EMAIL_KEY = "tz-email";   // remembered on this phone, so "email me" is one tap after the first time
 function showIntake(code) {
   const p = current?.product || {};
+  const savedEmail = (() => { try { return localStorage.getItem(EMAIL_KEY) || ""; } catch { return ""; } })();
   const chips = (name, opts) => opts.map((o) => `<label class="chip glass"><input type="radio" name="${name}" value="${o.toLowerCase()}"><span>${o}</span></label>`).join("");
   $("#infoBody").innerHTML = `<form class="intake" id="intakeForm">
     <h4>want it vetted?</h4>
@@ -445,18 +449,20 @@ function showIntake(code) {
     </div>
     <label class="fld">Product<input name="name" value="${esc(p.name || "")}" placeholder="name on the front" required></label>
     <label class="fld">Brand<input name="brand" value="${esc((p.brands || [])[0] || "")}" placeholder="brand"></label>
-    <p class="q">What's it in?</p><div class="chips">${chips("material", ["Glass", "Metal", "Paper", "Plastic", "Mixed"])}</div>
+    <p class="q">What's it in?</p><div class="chips">${chips("material", ["Glass", "Metal", "Cardboard", "Plastic", "Other / not sure"])}</div>
     <div id="touchQ" hidden><p class="q">Does plastic touch the product?</p><div class="chips">${chips("touch", ["Yes", "No", "Not sure"])}</div></div>
     <label class="fld">Ingredients <em>optional, the photo works</em><textarea name="ingredients" rows="3" placeholder="paste or type them"></textarea></label>
-    <label class="fld">Email <em>optional, to hear the score</em><input name="email" type="email" placeholder="you@example.com" autocomplete="email"></label>
-    <button class="pill navy cta" type="submit">Send to the vet queue</button>
+    <label class="tick"><input type="checkbox" name="notify"${savedEmail ? " checked" : ""}><span>Email me when it's scored</span></label>
+    <label class="fld" id="emailFld"${savedEmail ? "" : " hidden"}>Email<input name="email" type="email" value="${esc(savedEmail)}" placeholder="you@example.com" autocomplete="email"${savedEmail ? " required" : ""}></label>
+    <button class="pill navy cta" type="submit">Get it scored</button>
   </form>`;
   $("#info").hidden = false;
   const shots = {};
   const f = $("#intakeForm");
   f.addEventListener("change", async (e) => {
     const t = e.target;
-    if (t.name === "material") $("#touchQ").hidden = !["plastic", "mixed"].includes(t.value);
+    if (t.name === "material") $("#touchQ").hidden = !["plastic", "other / not sure"].includes(t.value);
+    if (t.name === "notify") { $("#emailFld").hidden = !t.checked; f.email.required = t.checked; if (t.checked && !f.email.value) f.email.focus(); }
     if (t.dataset.shot && t.files[0]) {
       try { shots[t.dataset.shot] = await shrink(t.files[0]); t.parentNode.querySelector("img").src = shots[t.dataset.shot]; t.parentNode.classList.add("has"); } catch {}
     }
@@ -464,12 +470,15 @@ function showIntake(code) {
   f.addEventListener("submit", async (e) => {
     e.preventDefault();
     const d = Object.fromEntries(new FormData(f));
+    const email = d.notify ? (d.email || "").trim() : "";
+    if (email) { try { localStorage.setItem(EMAIL_KEY, email); } catch {} }
     const entry = { code: code || "", name: d.name, brand: d.brand, material: d.material || "", plasticTouches: d.touch || "",
-      ingredients: d.ingredients || "", email: d.email || "", front: shots.front || "", label: shots.label || "", at: new Date().toISOString() };
+      ingredients: d.ingredients || "", email, front: shots.front || "", label: shots.label || "", at: new Date().toISOString() };
     intake.save([entry, ...intake.all().filter((x) => !x.code || x.code !== entry.code)]);
     await sendIntake();
-    $("#infoBody").innerHTML = `<h4>Thank you.</h4><div class="blk"><p>${esc(entry.name || "It")} is in the vet queue${navigator.onLine ? "" : ". No signal right now, so it sends itself when you're back online"}. Once Tox Zero scores it, everyone who scans it sees the result.</p></div>
-      <button class="pill navy cta" type="button" onclick="document.querySelector('#info').hidden=true">Done</button>`;
+    $("#infoBody").innerHTML = `<h4>Sweet! We'll have an answer soon.</h4><div class="blk"><p>You just helped everyone in the community who scans ${esc(entry.name || "this")} next.${email ? " We'll email you the second it's scored." : ""}${navigator.onLine ? "" : " No signal right now, so it sends itself once you're back online."}</p></div>
+      <button class="pill navy cta" type="button" id="scanAgain">${icon("scan")}Scan another</button>`;
+    $("#scanAgain").addEventListener("click", () => { $("#info").hidden = true; go("#/"); startCamera(); });
     paintVetCount();
     if (current) renderResult(current);
   });
@@ -569,7 +578,7 @@ function routeStandard() {
 
 function routeVet() {
   const list = vet.all(), subs = intake.all(), pend = pending.all();
-  show(`${back}<h1 class="title">vet list.</h1><p class="sub">Not in the guide yet. The research queue.</p>
+  show(`${back}<h1 class="title">vet list.</h1><p class="sub">Not in the guide yet. We're on it.</p>
     ${subs.length ? `<p class="label">SENT TO BE VETTED</p><ul class="list">${subs.map((x) => `<li><div class="item glass">${pic(x.front, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name || "Unnamed")}</span>
       <span class="m">${esc([x.brand, x.material, x.code].filter(Boolean).join(" · "))}${x.label ? " · label photo" : ""}${x.sent ? " · sent" : " · on this phone"}</span></span></div></li>`).join("")}</ul>` : ""}
     ${pend.length ? `<p class="label">SAVED WITHOUT SIGNAL</p><ul class="list">${pend.map((x) => `<li><button class="item glass" type="button" onclick="location.hash='#/p/${esc(x.code)}'">
