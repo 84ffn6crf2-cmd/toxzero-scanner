@@ -1,32 +1,35 @@
 // Tox Zero Scanner — UI. Scoring lives in engine.js; this file only fetches, routes and renders.
+// Look: light raw photo + frosted glass + navy (tox-zero-brand DEFAULT LOOK). Pictures first, few words:
+// photo + verdict stamp → three tiles (ingredients · packaging · owner) → swaptions as photo cards → tap-to-open why.
 import { buildData, evaluate, fromOBF, normCode, searchPicks, swapsFor, scanIngredients, INGREDIENT_RULES } from "./engine.js";
 
 const OBF = "https://world.openbeautyfacts.org";
 const FIELDS = "code,product_name,product_name_en,generic_name,brands,ingredients_text,ingredients_text_en,packaging,packaging_tags,packagings,categories_tags,image_front_small_url";
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const icon = (name) => `<svg class="i" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const cache = new Map();   // code -> normalized product (from search results or earlier lookups)
 let data;
 
-// ── vet list (per-device convenience; the real queue is Andra's research list) ──
+// ── vet list (per-device convenience) ──
 const VET_KEY = "tz-vet-list";
 const vet = {
   all() { try { return JSON.parse(localStorage.getItem(VET_KEY)) || []; } catch { return []; } },
   add(p) {
     const list = vet.all().filter((x) => x.code !== p.code || !p.code);
-    list.unshift({ code: p.code || "", name: p.name || "Unknown product", brand: (p.brands || [])[0] || "", at: new Date().toISOString().slice(0, 10) });
+    list.unshift({ code: p.code || "", name: p.name || "Unknown product", brand: (p.brands || [])[0] || "", image: p.image || "", at: new Date().toISOString().slice(0, 10) });
     try { localStorage.setItem(VET_KEY, JSON.stringify(list.slice(0, 200))); } catch {}
     paintVetCount();
   },
   clear() { try { localStorage.removeItem(VET_KEY); } catch {} paintVetCount(); },
 };
-const paintVetCount = () => { $("#vetCount").textContent = vet.all().length; };
+const paintVetCount = () => { $("#vetCount").textContent = " " + vet.all().length; };
 
 // ── data ──
 async function loadData() {
-  const get = (f) => fetch(`data/${f}.json`).then((r) => r.json());
-  const [picks, barcodes, owners, wall] = await Promise.all(["picks", "barcodes", "owners", "wall"].map(get));
-  data = buildData({ picks, barcodes, owners, wall });
+  const get = (f) => fetch(`data/${f}.json`).then((r) => r.json()).catch(() => ({}));
+  const [picks, barcodes, owners, wall, images] = await Promise.all(["picks", "barcodes", "owners", "wall", "images"].map(get));
+  data = buildData({ picks, barcodes, owners, wall, images });
 }
 
 async function fetchJSON(url, ms = 9000) {
@@ -58,7 +61,7 @@ async function startCamera() {
   const finder = $("#finder"), msg = $("#camMsg");
   msg.hidden = true;
   if (!navigator.mediaDevices?.getUserMedia || !window.isSecureContext) {
-    msg.textContent = "The live camera needs the https link. Use “Photo of a barcode” instead.";
+    msg.textContent = "Live camera needs the https link. Use Photo.";
     msg.hidden = false; return;
   }
   try {
@@ -71,7 +74,7 @@ async function startCamera() {
     );
   } catch (e) {
     stopCamera();
-    msg.textContent = e && e.name === "NotAllowedError" ? "Camera access is off. Allow it in Settings, or use a photo." : "Couldn't start the camera. Try a photo of the barcode.";
+    msg.textContent = e && e.name === "NotAllowedError" ? "Camera is off. Allow it in Settings, or use Photo." : "Camera didn't start. Try Photo.";
     msg.hidden = false;
   }
 }
@@ -95,12 +98,12 @@ async function decodePhoto(file) {
   } catch {
     busy(false);
     const msg = $("#camMsg");
-    msg.textContent = "No barcode found in that photo. Get closer, keep it flat, or type the number.";
+    msg.textContent = "No barcode in that photo. Closer, flat, or Type it.";
     msg.hidden = false;
   }
 }
 
-// ── rendering ──
+// ── building blocks ──
 const panel = () => $("#panel");
 function show(html) {
   $("#home").hidden = true;
@@ -108,111 +111,112 @@ function show(html) {
   p.style.animation = "none"; void p.offsetWidth; p.style.animation = "";
   window.scrollTo(0, 0);
 }
-const back = `<button class="back" type="button" onclick="history.length > 1 ? history.back() : (location.hash = '#/')">← scan another</button>`;
+const back = `<button class="back" type="button" onclick="history.length > 1 ? history.back() : (location.hash = '#/')">${icon("back")}scan another</button>`;
+const initial = (s) => esc((String(s || "?").trim()[0] || "?").toUpperCase());
+// photo with a graceful letter fallback (some brand images won't load)
+const pic = (src, name, cls = "") => src
+  ? `<img class="${cls}" src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<div class=&quot;ph ${cls}&quot;>${initial(name)}</div>'">`
+  : `<div class="ph ${cls}">${initial(name)}</div>`;
 
-function productHead(p) {
-  return `<div class="product">
-    ${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy">` : ""}
-    <div><div class="brand">${esc((p.brands || []).join(", "))}</div>
-    <div class="name">${esc(p.name || "Unknown product")}</div>
-    ${p.code ? `<div class="code">${esc(p.code)}</div>` : ""}</div></div>`;
+const STATUS_ICON = { fail: "x", pass: "check", warn: "warn", clear: "dash", unknown: "q" };
+const STAMP = {
+  pick: `${icon("check")}Tox Zero pick`,
+  flagged: `${icon("x")}Flagged`,
+  unvetted: `${icon("q")}Not vetted yet`,
+};
+
+function hero(r, name, brand, image) {
+  return `<div class="hero">
+    <div class="photo glass">${pic(image, name || brand)}</div>
+    <span class="stamp ${r.verdict}">${STAMP[r.verdict]}</span>
+    ${brand ? `<div class="brand">${esc(brand)}</div>` : ""}
+    <div class="name">${esc(name || "Unknown product")}</div></div>`;
 }
 
-const TIER = { hard: "HARD LINE", dotted: "DOTTED LINE" };
-const TYPE = { owner: "OWNERSHIP", packaging: "PACKAGING" };
-
-function reasonsList(reasons) {
-  return `<ul class="reasons">${reasons.map((r) => `<li>
-    <div class="what"><b class="accent">${esc(r.label)}</b><span class="tier">${TYPE[r.type] || TIER[r.tier] || ""}</span></div>
-    ${r.match ? `<span class="on">On the label: ${esc(r.match)}</span>` : ""}
-    <p>${esc(r.detail)}</p></li>`).join("")}</ul>`;
+// The core of Tox Zero: what's in it AND what it's in (and who gets the money), side by side.
+function tiles(card) {
+  const t = (key, ico, label) => {
+    const x = card[key];
+    return `<div class="tile glass"><span class="k">${icon(ico)}${label}</span>
+      <span class="dot ${x.status}">${icon(STATUS_ICON[x.status])}</span><span class="s">${esc(x.short)}</span></div>`;
+  };
+  return `<div class="tiles">${t("ingredients", "drop", "INGREDIENTS")}${t("packaging", "bottle", "PACKAGING")}${t("owner", "owner", "OWNER")}</div>`;
 }
-// The two lines that set Tox Zero apart: what's in it AND what it's in, side by side on every result.
-const scorecard = (c) => c ? `<div class="card2">${[c.ingredients, c.packaging].map((x) => `<div class="tile ${x.status}">
-    <span class="t">${esc(x.title)}</span><span class="w">${esc(x.word)}</span><span class="d">${esc(x.detail)}</span></div>`).join("")}</div>` : "";
-const notesList = (notes) => notes.length
-  ? `<ul class="notes">${notes.map((n) => `<li><b>${esc(n.label)}</b>${esc(n.detail)}</li>`).join("")}</ul>` : "";
 
+// each swaption shows the same three checks, so the difference reads at a glance
 function swapCards(swaps) {
-  return `<div class="swaps">${swaps.map((s) => `<a class="swap" href="${esc(s.link)}" target="_blank" rel="noopener">
-    <span class="n">${s.star ? `<span class="badge">❤︎ ANDRA'S PICK</span>` : ""}${esc(s.name)}</span>
-    <span class="m">${esc(s.category)} · ${esc((s.packaging || "").replace(/⟡\s*/g, ""))} · ${esc(s.price || "")}</span>
-    ${s.why ? `<span class="w">${esc(clip(s.why, 150))}</span>` : ""}
-    <span class="go">Shop it → ${esc(s.link.replace("https://", ""))}</span></a>`).join("")}</div>`;
+  return `<div class="swaps">${swaps.map((s) => {
+    const pk = s.plastic || s.plastic_part ? `<span class="w">${icon("bottle")}${icon("warn")}</span>` : `<span>${icon("bottle")}${icon("check")}</span>`;
+    return `<a class="swap glass" href="${esc(s.link)}" target="_blank" rel="noopener">
+      <div class="pic">${pic(s.image, s.name)}<span class="ok">${icon("check")}Tox Zero pick</span>${s.star ? `<span class="heart"><b>❤︎</b> Andra's</span>` : ""}</div>
+      <span class="n">${esc(s.name)}</span>
+      <span class="mini"><span>${icon("drop")}${icon("check")}</span>${pk}<span>${icon("owner")}${icon("check")}</span></span>
+      <span class="sfoot"><span>${esc(s.price || "")}</span><span class="go">shop ${icon("arrow")}</span></span></a>`;
+  }).join("")}</div>`;
 }
-const clip = (s, n) => (s.length > n ? s.slice(0, n).replace(/\s+\S*$/, "") + "…" : s);
+
+function versus(p, best) {
+  return `<div class="versus" aria-hidden="true">
+    <div class="v glass">${pic(p.image, p.name || (p.brands || [])[0])}<span class="badge x">${icon("x")}</span></div>
+    <span class="arrow">${icon("arrow")}</span>
+    <div class="v glass">${pic(best.image, best.name)}<span class="badge ok">${icon("check")}</span></div></div>`;
+}
+
+const TAG = { owner: "owner", packaging: "packaging" };
+function whyList(reasons, notes = []) {
+  const rows = [
+    ...reasons.map((r) => ({ cls: "", what: r.match || r.label.replace(/^Owned by /, ""), tag: TAG[r.type] || r.label, detail: r.type === "ingredient" ? r.detail : `${r.label}. ${r.detail}` })),
+    ...notes.filter((n) => n.type === "ingredient").map((n) => ({ cls: "note", what: n.label, tag: "heads-up", detail: n.detail })),
+  ];
+  if (!rows.length) return "";
+  return `<div class="why glass">${rows.map((x) => `<details><summary><span class="d ${x.cls}"></span>
+    <span class="what">${esc(x.what)}</span><span class="tag">${esc(x.tag)}</span></summary><p>${esc(x.detail)}</p></details>`).join("")}</div>`;
+}
 
 function inciBlock(p, reasons) {
   if (!p.ingredients) return "";
   const bad = new Set(reasons.filter((r) => r.match).map((r) => r.match));
   const { tokens } = scanIngredients(p.ingredients);
-  return `<details class="inci"><summary>Ingredients on file (${tokens.length})</summary>
+  return `<details class="inci glass"><summary>All ingredients (${tokens.length})</summary>
     <p>${tokens.map((t) => (bad.has(t) ? `<mark>${esc(t)}</mark>` : esc(t))).join(", ")}</p></details>`;
 }
 const attrib = (p) => p.source === "obf"
-  ? `<p class="attrib">Product record: <a href="${OBF}/product/${esc(p.code)}" target="_blank" rel="noopener">Open Beauty Facts</a> contributors, ODbL. Images CC BY-SA. Labels change; the bottle in your hand wins.</p>` : "";
+  ? `<p class="attrib">Data: <a href="${OBF}/product/${esc(p.code)}" target="_blank" rel="noopener">Open Beauty Facts</a> (ODbL), images CC BY-SA. Labels change; the bottle in your hand wins.</p>` : "";
 
+// ── screens ──
 function renderResult(r) {
   const p = r.product;
   if (r.verdict === "pick") {
     const k = r.pick;
-    return show(`${back}${p.name ? productHead(p) : ""}
-      <div class="verdict pick">
-        <span class="heart">❤︎</span><h2>Tox Zero pick.</h2>
-        <p class="lede">${esc(k.name)}. In Andra's guide: ${esc(k.section)} · ${esc(k.category)}.</p>
-        ${scorecard(r.card)}
-        <dl class="facts">
-          ${k.why ? `<dt>WHY</dt><dd>${esc(k.why)}</dd>` : ""}
-          ${r.variant ? `<dt>VARIANT</dt><dd>${esc(r.variant)}</dd>` : ""}
-          ${k.price ? `<dt>PRICE</dt><dd>${esc(k.price)}</dd>` : ""}
-        </dl>
-        ${notesList(r.notes)}
-        <a class="pill solid cta" href="${esc(k.link)}" target="_blank" rel="noopener">Shop it →</a>
-      </div>
+    return show(`${back}${hero(r, k.name, `${k.section} · ${k.category}`, k.image || p.image)}
+      ${tiles(r.card)}
+      <div class="pickbox glass">${k.why ? `<p>${esc(k.why)}</p>` : ""}
+        <span class="meta">${esc([r.card.packaging.detail, k.price, r.variant].filter(Boolean).join(" · "))}</span></div>
+      <a class="pill navy cta" href="${esc(k.link)}" target="_blank" rel="noopener">Shop it ${icon("arrow")}</a>
       ${p.code ? `<p class="attrib">Barcode matched to the brand's own store listing.</p>` : ""}`);
   }
 
+  const brand = (p.brands || []).join(", ");
   if (r.verdict === "flagged") {
-    const n = r.reasons.length;
-    return show(`${back}${productHead(p)}
-      <div class="verdict flagged">
-        <h2>Flagged.</h2>
-        <p class="lede">Fails the Tox Zero standard on ${n} count${n > 1 ? "s" : ""}.</p>
-        ${scorecard(r.card)}
-        ${reasonsList(r.reasons)}${notesList(r.notes)}
-      </div>
-      ${lookalikeBlock(r)}
-      ${r.swaps.length ? `<h3 class="section">The swap.</h3>
-        <p class="section-sub">Vetted picks for ${esc(r.shelf.label.toLowerCase())}, straight from the guide.</p>${swapCards(r.swaps)}`
-      : `<p class="section-sub">${r.shelf ? "No guide pick on this shelf yet." : "The guide doesn't cover this shelf yet."} It's on the vet list.</p>`}
+    return show(`${back}${hero(r, p.name, brand, p.image)}
+      ${tiles(r.card)}
+      ${r.swaps.length ? `<h3 class="section">the swaptions.</h3>
+        ${versus(p, r.swaps[0])}${swapCards(r.swaps)}`
+      : `<p class="note">No guide pick for this shelf yet. It's on the vet list.</p>`}
+      <h3 class="section">why.</h3>${whyList(r.reasons, r.notes)}
       ${inciBlock(p, r.reasons)}${attrib(p)}`);
   }
 
-  // unvetted
   const nothing = !p.source;
-  const shelfSwaps = r.shelf ? swapsFor(r.shelf, data.picks, 2) : [];
-  return show(`${back}${productHead(p)}
-    <div class="verdict">
-      <h2>Not vetted yet.</h2>
-      <p class="lede">${nothing
-        ? "This barcode isn't in Open Beauty Facts yet, so there's nothing to check."
-        : "Andra hasn't vetted this one. Nothing on file tripped a flag, and that's not a pass: only the guide approves."}</p>
-      ${scorecard(r.card)}
-      ${notesList(r.notes)}
-      <p class="lede" style="margin-top:12px"><b>Added to the vet list.</b></p>
-    </div>
-    ${lookalikeBlock(r)}
-    ${nothing ? `<a class="pill ghost cta" href="#/" onclick="setTimeout(()=>document.querySelector('#searchInput').focus(),50)">Search by name instead</a>` : ""}
-    ${shelfSwaps.length ? `<h3 class="section">Already in the guide.</h3>
-      <p class="section-sub">Vetted picks for ${esc(r.shelf.label.toLowerCase())}.</p>${swapCards(shelfSwaps)}` : ""}
-    ${inciBlock(p, [])}${attrib(p)}`);
-}
-
-function lookalikeBlock(r) {
-  if (!r.lookalikes || !r.lookalikes.length) return "";
-  return `<ul class="list">${r.lookalikes.map((k) => `<li><button type="button" onclick="location.hash='#/g/${esc(k.id)}'">
-    <span class="n">Looks like the guide's ${esc(k.name)}</span>
-    <span class="m">This barcode isn't confirmed yet. Tap for the guide entry.</span></button></li>`).join("")}</ul>`;
+  const shelfSwaps = r.shelf ? swapsFor(r.shelf, data.picks, 3) : [];
+  return show(`${back}${hero(r, p.name || "Unknown product", brand || (nothing ? p.code : ""), p.image)}
+    ${tiles(r.card)}
+    <p class="note">${nothing ? "Not in Open Beauty Facts yet." : "No flags isn't a yes."} Added to the vet list.</p>
+    ${r.lookalikes?.length ? `<ul class="list">${r.lookalikes.map((k) => `<li><button class="item glass" type="button" onclick="location.hash='#/g/${esc(k.id)}'">
+      ${pic(k.image, k.name, "thumb")}<span class="txt"><span class="n">The guide's ${esc(k.name)}?</span><span class="m">barcode not confirmed · tap</span></span></button></li>`).join("")}</ul>` : ""}
+    ${nothing ? `<a class="pill glass cta" href="#/" onclick="setTimeout(()=>document.querySelector('#searchInput').focus(),50)">${icon("search")}Search by name</a>` : ""}
+    ${shelfSwaps.length ? `<h3 class="section">already vetted.</h3><p class="section-sub">${esc(r.shelf.label.toLowerCase())} picks from the guide</p>${swapCards(shelfSwaps)}` : ""}
+    ${whyList([], r.notes)}${inciBlock(p, [])}${attrib(p)}`);
 }
 
 async function routeBarcode(code) {
@@ -224,8 +228,9 @@ async function routeBarcode(code) {
   try { p = await lookupOBF(code); } catch { offline = true; }
   busy(false);
   if (offline) {
-    return show(`${back}<div class="verdict"><h2>No signal.</h2>
-      <p class="lede">Couldn't reach Open Beauty Facts for ${esc(code)}. Guide picks still work offline; search by name or try again.</p></div>`);
+    return show(`${back}<div class="hero"><div class="photo glass"><div class="ph">?</div></div>
+      <span class="stamp unvetted">${icon("q")}No signal</span><div class="name">Couldn't reach Open Beauty Facts</div></div>
+      <p class="note">Guide picks still work offline. Try search, or again in a sec.</p>`);
   }
   p = p || { code, name: "", brands: [] };
   r = evaluate(p, data);
@@ -241,11 +246,12 @@ function routePick(id) {
 
 async function routeSearch(q) {
   const local = searchPicks(q, data.picks);
-  const head = `${back}<h1 class="title" style="font-size:40px;text-align:left">${esc(q)}.</h1>`;
-  const guide = `<p class="label">IN THE GUIDE</p>${local.length ? `<ul class="list">${local.map((k) => `<li><button type="button" onclick="location.hash='#/g/${esc(k.id)}'">
-      <span class="n">${esc(k.name)}</span><span class="m">${esc(k.section)} · ${esc(k.category)}</span></button></li>`).join("")}</ul>`
-    : `<p class="empty">No guide pick by that name.</p>`}`;
-  show(`${head}${guide}<p class="label">OPEN BEAUTY FACTS</p><div id="obfResults"><p class="empty">Searching…</p></div>`);
+  show(`${back}<h1 class="title" style="font-size:40px;text-align:left;margin-top:8px">${esc(q)}.</h1>
+    <p class="label">IN THE GUIDE</p>
+    ${local.length ? `<ul class="list">${local.map((k) => `<li><button class="item glass" type="button" onclick="location.hash='#/g/${esc(k.id)}'">
+      ${pic(k.image, k.name, "thumb")}<span class="txt"><span class="n">${esc(k.name)}</span><span class="m">${esc(k.category)}</span></span>
+      <span class="ok">${icon("check")}</span></button></li>`).join("")}</ul>` : `<p class="empty">No guide pick by that name.</p>`}
+    <p class="label">EVERYTHING ELSE</p><div id="obfResults"><p class="empty">Searching…</p></div>`);
   let items = [];
   try {
     const j = await fetchJSON(`${OBF}/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&json=1&page_size=12&fields=${FIELDS}`, 12000);
@@ -255,45 +261,42 @@ async function routeSearch(q) {
   if (!box) return;
   items.forEach((x) => cache.set(x.code, x));
   box.innerHTML = items.length
-    ? `<ul class="list">${items.map((x) => `<li><button type="button" onclick="location.hash='#/p/${esc(x.code)}'">
-        <span class="n">${esc(x.name)}</span><span class="m">${esc(x.brands.join(", "))} · ${esc(x.code)}</span></button></li>`).join("")}</ul>`
-    : `<p class="empty">Nothing there either. It's a gap worth vetting.</p>`;
+    ? `<ul class="list">${items.map((x) => `<li><button class="item glass" type="button" onclick="location.hash='#/p/${esc(x.code)}'">
+        ${pic(x.image, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name)}</span><span class="m">${esc(x.brands.join(", "))}</span></span></button></li>`).join("")}</ul>`
+    : `<p class="empty">Nothing there either. Worth vetting.</p>`;
 }
 
 function routeStandard() {
   const rules = INGREDIENT_RULES.filter((r) => r.tier !== "note").length;
-  const ownerBrands = data.ownerIndex.idx.size;
-  show(`${back}<div class="std"><h1 class="title" style="text-align:left">the standard.</h1>
-    <p class="sub" style="text-align:left">Three verdicts. Only one is a yes, and it only comes from the guide.</p>
-    <ol>
-      <li><b>Tox Zero pick.</b> In Andra's guide, vetted by a human. The barcode is matched to the brand's own store listing.</li>
-      <li><b>Flagged.</b> Fails one test, and the app names the exact ingredient, owner or packaging problem. Then it hands over the swap.</li>
-      <li><b>Not vetted yet.</b> Everything else. No flags is not a pass. It goes on the vet list.</li>
-    </ol>
-    <p class="label">A FLAG MEANS IT FAILED ONE OF THESE</p>
-    <ol>
-      <li><b>Ingredients.</b> Anything on the guide's Nasties pages: parfum and "natural fragrance", PEGs, phenoxyethanol, silicones, petrolatum, aluminum salts, parabens and more.</li>
-      <li><b>Who gets the money.</b> Owned by a conglomerate that profits from the products the guide replaces, or on the guide's Wall of Claim. Good owners pass.</li>
-      <li><b>Packaging.</b> A fatty formula in plastic pulls the plastic's additives into the product. Plastic on a consumable flags when the guide has a plastic-free pick for that shelf. Buy-it-for-life tools never get a plastic flag.</li>
-    </ol>
-    <p class="label">PACKAGING IS PART OF THE FORMULA</p>
-    <p class="sub" style="text-align:left">Every result rates two things side by side: what's in it, and what it's in. Plastic holding an oily formula leaches into the product, so packaging is a health line, not a footnote. End of life shows only when it's on record; otherwise it says not verified. Add who owns the brand, and every yes is a human call.</p>
+  const legend = (cls, ico, title, text) => `<div><span class="dot ${cls}">${icon(ico)}</span><span><b>${title}</b><span>${text}</span></span></div>`;
+  show(`${back}<div class="std"><h1 class="title">the standard.</h1>
+    <p class="lead">Only Andra's guide says yes.</p>
+    <div class="legend glass">
+      ${legend("pass", "check", "Tox Zero pick", "In the guide. Human-vetted.")}
+      ${legend("fail", "x", "Flagged", "Fails one test. Here's the swaption.")}
+      ${legend("unknown", "q", "Not vetted yet", "Everything else. No flags isn't a yes.")}
+    </div>
+    <p class="label">EVERY SCAN, THREE TESTS</p>
+    <div class="legend glass">
+      ${legend("clear", "drop", "Ingredients", "The guide's Nasties: parfum, PEGs, silicones, petrochemicals…")}
+      ${legend("clear", "bottle", "Packaging", "Part of the formula. Plastic + oil = leaching.")}
+      ${legend("clear", "owner", "Owner", "Conglomerates fail. Good owners pass.")}
+    </div>
     <div class="stats">
-      <div><b>${data.picks.length}</b><span>guide picks</span></div>
-      <div><b>${Object.keys(data.barcodes).length}</b><span>barcodes confirmed with brands</span></div>
-      <div><b>${rules}</b><span>ingredient rules</span></div>
-      <div><b>${ownerBrands}</b><span>brand names checked for ownership</span></div>
+      <div class="glass"><b>${data.picks.length}</b><span>guide picks</span></div>
+      <div class="glass"><b>${Object.keys(data.barcodes).length}</b><span>barcodes confirmed with brands</span></div>
+      <div class="glass"><b>${rules}</b><span>ingredient rules</span></div>
+      <div class="glass"><b>${data.ownerIndex.idx.size}</b><span>brand names checked for ownership</span></div>
     </div></div>`);
 }
 
 function routeVet() {
   const list = vet.all();
-  show(`${back}<h1 class="title" style="text-align:left">vet list.</h1>
-    <p class="sub" style="text-align:left">Every scan that isn't in the guide yet lands here. It's the research queue.</p>
-    ${list.length ? `<ul class="list">${list.map((x) => `<li><div class="item"><span class="n">${esc(x.name)}</span>
-      <span class="m">${esc(x.brand)}${x.brand ? " · " : ""}${esc(x.code)} · ${esc(x.at)}</span></div></li>`).join("")}</ul>
-      <div class="row"><button class="pill ghost" type="button" id="copyVet">Copy list</button><button class="pill ghost" type="button" id="clearVet">Clear</button></div>`
-    : `<p class="empty">Empty. Scan something the guide hasn't covered.</p>`}`);
+  show(`${back}<h1 class="title">vet list.</h1><p class="sub">Not in the guide yet. The research queue.</p>
+    ${list.length ? `<ul class="list">${list.map((x) => `<li><div class="item glass">${pic(x.image, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name)}</span>
+      <span class="m">${esc([x.brand, x.code, x.at].filter(Boolean).join(" · "))}</span></span></div></li>`).join("")}</ul>
+      <div class="row"><button class="pill glass" type="button" id="copyVet">Copy list</button><button class="pill glass" type="button" id="clearVet">Clear</button></div>`
+    : `<p class="empty" style="text-align:center">Empty. Scan something the guide hasn't covered.</p>`}`);
   $("#copyVet")?.addEventListener("click", async (e) => {
     const text = list.map((x) => [x.name, x.brand, x.code, x.at].filter(Boolean).join(" · ")).join("\n");
     try { await navigator.clipboard.writeText(text); e.target.textContent = "Copied"; } catch { e.target.textContent = "Copy failed"; }

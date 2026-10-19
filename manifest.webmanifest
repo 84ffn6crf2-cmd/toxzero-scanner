@@ -1,12 +1,12 @@
 {
   "name": "Tox Zero Scanner",
   "short_name": "Tox Zero",
-  "description": "Scan a beauty product. See if it meets the Tox Zero standard, and the swap if it doesn't.",
+  "description": "Scan a beauty product. Ingredients and packaging, every scan, and the swaption if it fails.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#092C21",
-  "theme_color": "#092C21",
+  "background_color": "#CFE4EA",
+  "theme_color": "#CFE4EA",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }

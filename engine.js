@@ -264,27 +264,32 @@ const EOL = { "en:recycle": "recyclable", "en:reuse": "reusable", "en:return-to-
 function ingredientsLine(r, tokens) {
   if (r.verdict === "pick") {
     const cell = r.pick.ingredients || "";
-    const made = /^\d+(\s|$|\s*\+)/.test(cell) ? `${cell.match(/^\d+/)[0]} ingredients${cell.replace(/^\d+/, "").trim() ? ` · ${cell.replace(/^\d+\s*/, "")}` : ""}` : cell;
-    return { title: /^\d/.test(cell) || !cell ? "INGREDIENTS" : "MADE OF", status: "pass", word: "Vetted", detail: made ? `${made}. In Andra's guide.` : "In Andra's guide." };
+    const n = (cell.match(/^\d+/) || [])[0];
+    const made = n ? `${n} ingredients${cell.replace(/^\d+/, "").trim() ? ` · ${cell.replace(/^\d+\s*/, "")}` : ""}` : cell;
+    return { title: n || !cell ? "INGREDIENTS" : "MADE OF", status: "pass", word: "Vetted",
+      short: n ? `${n} ingredients` : "vetted", detail: made ? `${made}. In Andra's guide.` : "In Andra's guide." };
   }
   const bad = r.reasons.filter((x) => x.type === "ingredient");
   if (bad.length) {
     const names = bad.map((x) => x.match);
-    return { title: "INGREDIENTS", status: "fail", word: "Fails",
+    return { title: "INGREDIENTS", status: "fail", word: "Fails", short: `${bad.length} flag${bad.length > 1 ? "s" : ""}`,
       detail: names.slice(0, 2).join(", ") + (names.length > 2 ? ` + ${names.length - 2} more` : "") };
   }
-  if (!tokens.length) return { title: "INGREDIENTS", status: "unknown", word: "Not verified", detail: "No label on file." };
+  if (!tokens.length) return { title: "INGREDIENTS", status: "unknown", word: "Not verified", short: "no label", detail: "No label on file." };
   const heads = r.notes.filter((x) => x.type === "ingredient").map((x) => x.label);
-  return { title: "INGREDIENTS", status: "clear", word: "No flags",
+  return { title: "INGREDIENTS", status: "clear", word: "No flags", short: "no flags",
     detail: `${tokens.length} checked. Not a pass.${heads.length ? ` Heads-up: ${heads.join(", ")}.` : ""}` };
 }
+
+const MATERIAL_WORD = /\b(glass|tin|aluminum|aluminium|metal|steel|paper|cardboard|paperboard|compostable|refill(able)?|wood|bamboo|cotton|beeswax)\b/i;
 
 function packagingLine(r, product, bifl) {
   if (r.verdict === "pick") {
     const k = r.pick, text = String(k.packaging || "").replace(/⟡\s*/g, "");
-    if (/bifl/i.test(text) || bifl) return { title: "PACKAGING", status: "pass", word: "BIFL", detail: text || "Buy it for life." };
-    if (k.plastic) return { title: "PACKAGING", status: "warn", word: "⚠ PLASTIC", detail: `${text}. The formula earned the spot; the packaging didn't.` };
-    return { title: "PACKAGING", status: "pass", word: "Vetted", detail: text || "Vetted with the product." };
+    const mat = ((text.match(MATERIAL_WORD) || [])[0] || "vetted").toLowerCase();
+    if (/bifl/i.test(text) || bifl) return { title: "PACKAGING", status: "pass", word: "BIFL", short: "buy it for life", detail: text || "Buy it for life." };
+    if (k.plastic) return { title: "PACKAGING", status: "warn", word: "⚠ PLASTIC", short: "plastic part", detail: `${text}. The formula earned the spot; the packaging didn't.` };
+    return { title: "PACKAGING", status: "pass", word: "Vetted", short: mat, detail: text || "Vetted with the product." };
   }
   const parts = product.packagings || [];
   const hay = `${product.packaging || ""} ${parts.map((x) => `${x.material || ""} ${x.shape || ""}`).join(" ")}`.replace(/en:|fr:|-/g, " ");
@@ -293,14 +298,28 @@ function packagingLine(r, product, bifl) {
   const eol = [...new Set(parts.map((x) => EOL[x.recycling]).filter(Boolean))].join(" / ");
   const what = [material, shape && shape.toLowerCase().replace("bouteille", "bottle").replace("flacon", "bottle")].filter(Boolean).join(" ");
   const pkgReason = r.reasons.find((x) => x.type === "packaging");
-  if (pkgReason) return { title: "PACKAGING", status: "fail", word: "Fails", detail: pkgReason.label };
-  if (!material) return { title: "PACKAGING", status: "unknown", word: "Not verified",
+  if (pkgReason) return { title: "PACKAGING", status: "fail", word: "Fails",
+    short: /oily/.test(pkgReason.label) ? "leaches" : /Aerosol/.test(pkgReason.label) ? "aerosol" : "plastic", detail: pkgReason.label };
+  if (!material) return { title: "PACKAGING", status: "unknown", word: "Not verified", short: "not verified",
     detail: shape ? `On file: ${what}. Material not recorded.` : "Nothing on file." };
   const end = eol ? `End of life: ${eol}.` : "End of life not verified.";
   if (material === "Plastic") return bifl
-    ? { title: "PACKAGING", status: "clear", word: "BIFL", detail: "Plastic on a buy-it-for-life tool is a one-time cost." }
-    : { title: "PACKAGING", status: "warn", word: "⚠ PLASTIC", detail: `${what}. A consumable in plastic: not zero waste. ${end}` };
-  return { title: "PACKAGING", status: "clear", word: "No flags", detail: `${what}. ${end}` };
+    ? { title: "PACKAGING", status: "clear", word: "BIFL", short: "buy it for life", detail: "Plastic on a buy-it-for-life tool is a one-time cost." }
+    : { title: "PACKAGING", status: "warn", word: "⚠ PLASTIC", short: "plastic", detail: `${what}. A consumable in plastic: not zero waste. ${end}` };
+  return { title: "PACKAGING", status: "clear", word: "No flags", short: material.toLowerCase(), detail: `${what}. ${end}` };
+}
+
+function ownerLine(r) {
+  if (r.verdict === "pick") return { title: "OWNER", status: "pass", word: "Vetted", short: "vetted", detail: "Checked when Andra vetted it." };
+  const o = r.reasons.find((x) => x.type === "owner");
+  if (o) {
+    const wall = /Wall of Claim/.test(o.label);
+    const who = wall ? "Wall of Claim" : o.label.replace(/^Owned by /, "").replace(/ since \d{4}$/, "");
+    return { title: "OWNER", status: "fail", word: "Fails", short: who, detail: o.label };
+  }
+  const passNote = r.notes.find((x) => x.type === "owner");
+  if (passNote) return { title: "OWNER", status: "clear", word: "Good owner", short: "good owner", detail: passNote.label };
+  return { title: "OWNER", status: "unknown", word: "Not on file", short: "not on file", detail: "No owner on record." };
 }
 
 // ── picks + swaps ────────────────────────────────────────────────────────────
@@ -410,7 +429,7 @@ export function evaluate(product, data) {
 }
 
 function withCard(r, tokens = [], bifl = false) {
-  r.card = { ingredients: ingredientsLine(r, tokens), packaging: packagingLine(r, r.product, bifl) };
+  r.card = { ingredients: ingredientsLine(r, tokens), packaging: packagingLine(r, r.product, bifl), owner: ownerLine(r) };
   return r;
 }
 
@@ -421,8 +440,8 @@ function pickNotes(pick) {
   return n;
 }
 
-export function buildData({ picks, barcodes, owners, wall }) {
-  const list = picks.picks || picks;
+export function buildData({ picks, barcodes, owners, wall, images = {} }) {
+  const list = (picks.picks || picks).map((p) => ({ ...p, image: images[p.id] || null }));
   return {
     picks: list,
     picksById: Object.fromEntries(list.map((p) => [p.id, p])),

@@ -1,9 +1,9 @@
 // Offline shell: app files + guide data are cached; Open Beauty Facts lookups always go to the network.
-const VERSION = "tz-scanner-v1";
+const VERSION = "tz-scanner-v2";
 const SHELL = [
   "./", "index.html", "styles.css", "app.js", "engine.js", "manifest.webmanifest",
   "vendor/zxing-library-0.21.3.min.js",
-  "data/picks.json", "data/barcodes.json", "data/owners.json", "data/wall.json",
+  "data/picks.json", "data/barcodes.json", "data/owners.json", "data/wall.json", "data/images.json", "img/bg.jpg",
   "fonts/Spectral-Bold.ttf", "fonts/Spectral-Regular.ttf", "fonts/EBGaramond-Regular.ttf",
   "fonts/Quicksand-Regular.ttf", "fonts/Quicksand-Bold.ttf",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",
