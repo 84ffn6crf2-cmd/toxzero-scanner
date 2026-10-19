@@ -224,18 +224,31 @@ function versus(p, best) {
 }
 
 const LV = { hard: "hard line", dotted: "dotted line", note: "heads-up" };
+// red = on the Nasties (hard or dotted line) · yellow = the guide's allowed compromises · green = not flagged
+const COLOR = (rule) => !rule ? "green" : rule.tier === "note" ? "yellow" : "red";
+const ORDER = { red: 0, yellow: 1, green: 2 };
+function inciRows(p) {
+  const { tokens, hits } = scanIngredients(p?.ingredients || "");
+  const byToken = new Map(hits.map((h) => [h.match, h.rule]));
+  return tokens.map((t) => ({ t, rule: byToken.get(t), c: COLOR(byToken.get(t)) })).sort((a, b) => ORDER[a.c] - ORDER[b.c]);
+}
+// one stacked bar: how much of the label is red, yellow, green
+function mix(rows) {
+  const n = { red: 0, yellow: 0, green: 0 };
+  rows.forEach((x) => n[x.c]++);
+  const seg = (c) => n[c] ? `<b class="${c}" style="flex:${n[c]}"></b>` : "";
+  return `<div class="mix" role="img" aria-label="${n.red} flagged, ${n.yellow} heads-up, ${n.green} not flagged">${seg("red")}${seg("yellow")}${seg("green")}</div>
+    <div class="mixkey"><span><i class="red"></i>${n.red} flagged</span><span><i class="yellow"></i>${n.yellow} heads-up</span><span><i class="green"></i>${n.green} not flagged</span></div>`;
+}
 // every ingredient on the label, flagged ones first, each flag with an ⓘ (Yuka pattern)
 function ingredients(p) {
-  if (!p.ingredients) return "";
-  const { tokens, hits } = scanIngredients(p.ingredients);
-  const byToken = new Map(hits.map((h) => [h.match, h.rule]));
-  const rows = tokens.map((t) => ({ t, rule: byToken.get(t) }))
-    .sort((a, b) => (a.rule ? (a.rule.tier === "note" ? 1 : 0) : 2) - (b.rule ? (b.rule.tier === "note" ? 1 : 0) : 2));
-  const row = ({ t, rule }, hidden) => `<div class="ing-row${rule ? "" : " quiet"}"${hidden ? " hidden" : ""}>
-      <div><div class="nm">${esc(t)}</div><div class="lv ${rule ? rule.tier : "none"}"><i></i>${rule ? `${esc(rule.label)} · ${LV[rule.tier]}` : "not flagged"}</div></div>
+  if (!p?.ingredients) return "";
+  const rows = inciRows(p);
+  const row = ({ t, rule, c }, hidden) => `<div class="ing-row${rule ? "" : " quiet"}"${hidden ? " hidden" : ""}>
+      <div><div class="nm">${esc(t)}</div><div class="lv ${c}"><i></i>${rule ? `${esc(rule.label)} · ${LV[rule.tier]}` : "not flagged"}</div></div>
       ${rule ? `<button class="ibtn" type="button" data-info="rule:${rule.id}" aria-label="About ${esc(rule.label)}">${icon("info")}</button>` : "<span></span>"}</div>`;
   const shown = Math.max(8, rows.filter((x) => x.rule).length);
-  return `<h3 class="section">ingredients.</h3><div class="ing glass">${rows.map((x, i) => row(x, i >= shown)).join("")}
+  return `<h3 class="section">ingredients.</h3><div class="ing glass">${mix(rows)}${rows.map((x, i) => row(x, i >= shown)).join("")}
     ${rows.length > shown ? `<button class="more-btn" type="button" onclick="this.parentNode.querySelectorAll('.ing-row[hidden]').forEach(e=>e.hidden=false);this.remove()">show all ${rows.length}</button>` : ""}</div>`;
 }
 
@@ -253,6 +266,7 @@ function renderResult(r) {
       <div class="pickbox glass">${k.why ? `<p>${esc(k.why)}</p>` : ""}
         <span class="meta">${esc([r.card.ingredients.short, k.price, r.variant].filter(Boolean).join(" · "))}</span></div>
       <a class="pill navy cta" href="${esc(k.link)}" target="_blank" rel="noopener">Shop it ${icon("arrow")}</a>
+      <div id="ingSection">${ingredients(p)}</div>
       ${p.code ? `<p class="attrib">Barcode matched to the brand's own store listing.</p>` : ""}`);
   }
   const brand = (p.brands || []).join(", ");
@@ -281,31 +295,46 @@ const TIERLINE = {
   dotted: "DOTTED LINE · the guide's picks skip it",
   note: "HEADS-UP · allowed in a couple of guide picks",
 };
-function showInfo(kind, key) {
+const STATUS_COLOR = { fail: "red", warn: "yellow", pass: "green", clear: "grey", unknown: "grey" };
+function showInfo(kind, key, from) {
   let html = "";
   if (kind === "rule") {
     const rule = INGREDIENT_RULES.find((x) => x.id === key), ex = EXPLAIN[key] || {};
     const seen = current && scanIngredients(current.product.ingredients || "").hits.find((h) => h.rule.id === key);
-    html = `<h4>${esc(rule.label)}</h4>
-      <div class="tierline"><span class="lv ${rule.tier}"><i></i></span>${TIERLINE[rule.tier]}</div>
+    html = `${from ? `<button class="info-back" type="button" data-info="pillar:ingredients">${icon("back")}all ingredients</button>` : ""}
+      <h4>${esc(rule.label)}</h4>
+      <div class="tierline"><span class="lv ${COLOR(rule)}"><i></i></span>${TIERLINE[rule.tier]}</div>
       ${seen ? `<div class="blk"><span>ON THIS LABEL</span><p>${esc(seen.match)}</p></div>` : ""}
       <div class="blk"><span>THE CONCERN</span><p>${esc(rule.why)}</p></div>
       ${ex.where ? `<div class="blk"><span>WHERE IT HIDES</span><p>${esc(ex.where)}</p></div>` : ""}
       ${ex.instead ? `<div class="blk"><span>WHAT THE GUIDE USES INSTEAD</span><p>${esc(ex.instead)}</p></div>` : ""}
       <p class="src">From the Tox Zero guide's Nasties pages.</p>`;
+  } else if (key === "ingredients") {
+    // the ingredients ⓘ IS the list: every ingredient, red / yellow / green, tap a red or yellow one for its why
+    const pl = PILLARS[0], x = current?.card?.ingredients, rows = inciRows(current?.product);
+    const pickCell = current?.verdict === "pick" ? current.pick.ingredients : "";
+    html = `<h4>Ingredients</h4>
+      ${x ? `<div class="tierline"><span class="lv ${STATUS_COLOR[x.status]}"><i></i></span>${esc(x.word.toUpperCase())}${x.short ? ` · ${esc(x.short)}` : ""}</div>` : ""}
+      ${rows.length ? `${mix(rows)}<div class="ilist">${rows.map(({ t, rule, c }) => rule
+          ? `<button class="irow" type="button" data-info="rule:${rule.id}" data-from="ingredients"><i class="${c}"></i><span>${esc(t)}</span><em>${esc(rule.label)} ›</em></button>`
+          : `<div class="irow"><i class="${c}"></i><span>${esc(t)}</span></div>`).join("")}</div>`
+        : pickCell ? `<div class="blk"><span>FROM THE GUIDE</span><p>${esc(pickCell)}. Andra vetted every one.</p></div>`
+        : `<div class="blk"><p>No label on file yet, so nothing could be checked.</p></div>`}
+      <div class="blk"><span>WHAT TOX ZERO CHECKS</span><p>${esc(pl.about)}</p></div>`;
   } else {
     const pl = PILLARS.find((x) => x.key === key), x = current?.card?.[key];
     html = `<h4>${esc(pl.label)}</h4>
-      ${x ? `<div class="tierline"><span class="lv ${x.status === "fail" ? "hard" : x.status === "warn" ? "dotted" : x.status === "pass" ? "none" : "note"}"><i></i></span>${esc(x.word.toUpperCase())}</div>
+      ${x ? `<div class="tierline"><span class="lv ${STATUS_COLOR[x.status]}"><i></i></span>${esc(x.word.toUpperCase())}</div>
       <div class="blk"><span>THIS PRODUCT</span><p>${esc(x.detail)}</p></div>` : ""}
       <div class="blk"><span>WHAT TOX ZERO CHECKS</span><p>${esc(pl.about)}</p></div>`;
   }
   $("#infoBody").innerHTML = html;
   $("#info").hidden = false;
+  $("#info .info-card").scrollTop = 0;
 }
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-info]");
-  if (b) { e.preventDefault(); const [kind, key] = b.dataset.info.split(":"); showInfo(kind, key); return; }
+  if (b) { e.preventDefault(); const [kind, key] = b.dataset.info.split(":"); showInfo(kind, key, b.dataset.from); return; }
   if (e.target.id === "info" || e.target.closest("#infoClose")) $("#info").hidden = true;
 });
 
@@ -323,7 +352,7 @@ const back = `<button class="back" type="button" onclick="history.length > 1 ? h
 async function routeBarcode(code) {
   code = normCode(code);
   let r = evaluate({ code }, data);
-  if (r.verdict === "pick") return renderResult(r);
+  if (r.verdict === "pick") { renderResult(r); return enrichPick(code, r); }
   busy(true);
   let p = null, offline = false;
   try { p = await lookupOBF(code); } catch { offline = true; }
@@ -338,6 +367,15 @@ async function routeBarcode(code) {
   r = evaluate(p, data);
   if (r.verdict === "unvetted" || (r.verdict === "reject" && !r.swaps.length)) vet.add(p);
   renderResult(r);
+}
+
+async function enrichPick(code, r) {
+  let p = null;
+  try { p = await lookupOBF(code); } catch {}
+  if (!p?.ingredients || current !== r) return;
+  r.product = { ...r.product, ingredients: p.ingredients, source: "obf", code };
+  const box = $("#ingSection");
+  if (box) box.innerHTML = ingredients(r.product) + attrib(r.product);
 }
 
 function routePick(id) {

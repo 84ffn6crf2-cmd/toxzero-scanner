@@ -424,13 +424,15 @@ export function normCode(code) {
   return c;
 }
 
+const unescapeHTML = (t) => String(t || "").replace(/&gt;?/g, ">").replace(/&lt;?/g, "<").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+
 export function fromOBF(json) {
   const p = (json && json.product) || {};
   return {
     code: normCode(p.code || json.code),
     name: p.product_name || p.product_name_en || p.generic_name || "",
     brands: String(p.brands || "").split(",").map((s) => s.trim()).filter(Boolean),
-    ingredients: p.ingredients_text_en || p.ingredients_text || "",
+    ingredients: unescapeHTML(p.ingredients_text_en || p.ingredients_text),
     packaging: [...(p.packaging_tags || []), p.packaging || ""].join(" "),
     packagings: (p.packagings || []).map((x) => ({ material: x.material, shape: x.shape, recycling: x.recycling })),
     categories: (p.categories_tags || []).join(" "),
