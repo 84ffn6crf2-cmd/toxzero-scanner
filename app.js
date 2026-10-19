@@ -302,8 +302,8 @@ function renderResult(r) {
   openSheet(`${peek(r, p.name || "Unknown product", brand || (nothing ? p.code : ""), p.image)}${checked}
     <p class="note">${nothing ? "Not in Open Beauty Facts yet." : "No flags isn't a yes."}</p>
     ${submitted(p.code) ? `<div class="helpvet glass"><b>${icon("check")} In the vet queue.</b><span>Once it's scored, everyone who scans it sees the result.</span></div>`
-      : `<div class="helpvet glass"><b>help us vet it.</b><span>Snap the front and the ingredient list. Tox Zero scores it, and the next person who scans it sees the result.</span>
-      <button class="pill navy" type="button" data-intake="${esc(p.code || "")}">${icon("camera")}Add this product</button></div>`}
+      : `<div class="helpvet glass"><b>want it vetted?</b><span>Snap the front and the ingredient list. We'll score it, and the next person who scans it sees the result.</span>
+      <button class="pill navy" type="button" data-intake="${esc(p.code || "")}">${icon("camera")}Yes, vet it</button></div>`}
     ${r.lookalikes?.length ? `<ul class="list">${r.lookalikes.map((k) => `<li><button class="item glass" type="button" onclick="location.hash='#/g/${esc(k.id)}'">
       ${pic(k.image, k.name, "thumb")}<span class="txt"><span class="n">The guide's ${esc(k.name)}?</span><span class="m">barcode not confirmed · tap</span></span></button></li>`).join("")}</ul>` : ""}
     ${bars(r)}
@@ -416,7 +416,7 @@ function toast(text, href) {
 }
 window.addEventListener("online", () => { sendIntake(); scorePending(); });
 
-// ── "help us vet it": photos + packaging, into the vet queue ──
+// ── "want it vetted?": photos + packaging, into the vet queue ──
 const submitted = (code) => !!code && intake.all().some((x) => x.code === code);
 async function shrink(file, max = 900) {
   const img = await createImageBitmap(file);
@@ -429,7 +429,7 @@ function showIntake(code) {
   const p = current?.product || {};
   const chips = (name, opts) => opts.map((o) => `<label class="chip glass"><input type="radio" name="${name}" value="${o.toLowerCase()}"><span>${o}</span></label>`).join("");
   $("#infoBody").innerHTML = `<form class="intake" id="intakeForm">
-    <h4>help us vet it.</h4>
+    <h4>want it vetted?</h4>
     <p class="hint">Barcode ${esc(code || "not scanned")}</p>
     <div class="shots">
       <label class="shot glass"><input type="file" accept="image/*" capture="environment" data-shot="front" hidden><img alt=""><span>${icon("camera")}Front</span></label>
