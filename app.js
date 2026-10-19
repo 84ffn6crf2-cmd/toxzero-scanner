@@ -171,10 +171,16 @@ function ring(r) {
     return `<circle class="seg ${st}" cx="50" cy="50" r="${R}" stroke-dasharray="${seg - gap} ${C - seg + gap}"
       stroke-dashoffset="${-i * seg}" transform="rotate(${-90 + (gap / 2 / C) * 360} 50 50)"><title>${pl.label}: ${st}</title></circle>`;
   }).join("");
+  // minimal labels: each arc's pillar icon sits in the corner beside it (same icons as the bars)
+  const labels = PILLARS.map((pl, i) => {
+    const th = (45 + i * 90) * Math.PI / 180, rr = 57, sz = 13;
+    const x = 50 + rr * Math.sin(th) - sz / 2, y = 50 - rr * Math.cos(th) - sz / 2;
+    return `<use class="ricon" href="#i-${pl.icon}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${sz}" height="${sz}"><title>${pl.label}</title></use>`;
+  }).join("");
   const glyph = { pick: "✓", flagged: "✕", unvetted: "?" }[r.verdict];
   const n = (s) => PILLARS.filter((pl) => r.card[pl.key].status === s).length;
   const cap = r.verdict === "pick" ? `${n("pass")}/4 pillars${n("warn") ? " · ⚠" : ""}` : r.verdict === "flagged" ? `fails ${n("fail")} of 4` : `${n("clear")}/4 checked`;
-  return `<div class="ringbox"><svg class="ring" viewBox="0 0 100 100" role="img" aria-label="Four pillars">${arcs}
+  return `<div class="ringbox"><svg class="ring" viewBox="0 0 100 100" role="img" aria-label="Four pillars: ${PILLARS.map((pl) => `${pl.label} ${r.card[pl.key].status}`).join(", ")}">${arcs}${labels}
     <text class="glyph" x="50" y="61" text-anchor="middle">${glyph}</text></svg><div class="cap">${cap}</div></div>`;
 }
 

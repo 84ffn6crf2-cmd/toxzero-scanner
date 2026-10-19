@@ -224,7 +224,8 @@ details.inci mark { background: rgba(255, 142, 158, .45); color: var(--ink); bor
 .peek .name { font-family: var(--serif); font-size: 19px; line-height: 1.15; color: var(--ink); margin: 1px 0 7px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .peek .stamp { margin: 0; padding: 5px 11px; font-size: 13px; }
 .ringbox { text-align: center; }
-.ring { width: 92px; height: 92px; display: block; }
+.ring { width: 104px; height: 104px; display: block; overflow: visible; }
+.ring .ricon { fill: none; stroke: var(--ink-soft); stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
 .ring .seg { fill: none; stroke-width: 11; stroke-linecap: butt; }
 .ring .seg.pass { stroke: var(--lvl-pass); } .ring .seg.warn { stroke: var(--lvl-warn); }
 .ring .seg.clear { stroke: var(--lvl-clear); } .ring .seg.fail { stroke: var(--lvl-fail); }
