@@ -287,3 +287,10 @@ button.irow { cursor: pointer; font-weight: 700; }
 .info .blk span { display: block; font-size: 10px; font-weight: 700; letter-spacing: .16em; color: var(--ink-soft); margin-bottom: 2px; }
 .info .blk p { margin: 0; font-family: var(--serif); font-size: 17px; line-height: 1.35; color: var(--ink-body); }
 .info .src { font-size: 11px; color: var(--ink-soft); margin: 4px 0 0; }
+
+/* active (mechanism) tag */
+.act { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 1px 7px 1px 5px; border-radius: 999px; background: rgba(30, 58, 107, .08); color: var(--ink); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; vertical-align: 2px; }
+.act svg.i { width: 11px; height: 11px; }
+.tierline .act { margin: 0 4px 0 0; }
+.irow small { display: block; font-size: 12px; font-weight: 400; color: var(--ink-soft); margin-top: 2px; }
+.irow > .act { flex: none; margin: 0; padding: 4px; }

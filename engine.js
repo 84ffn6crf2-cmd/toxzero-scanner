@@ -118,6 +118,106 @@ export const EXPLAIN = {
   tocoacetate: { where: "Lotions, serums, \"vitamin E\" claims", instead: "Natural mixed tocopherols" },
 };
 
+// ── Efficacy = the science of the mechanism ──────────────────────────────────
+// The guide's Efficacy page: "Below 1%, label order is arbitrary. A hero active listed below that threshold
+// is label decoration." Mechanism lines use the guide's own wording where it has one (deodorant: Andra's
+// 5-mechanism notes; toothpaste p102; self-tan p93; urea p60; scalp p44; AHAs p19).
+export const MECHANISMS = [
+  { id: "uv-mineral", label: "Mineral UV filter", re: /zinc oxide|titanium dioxide|ci 77947|ci 77891/, how: "Minerals that block UVA and UVB." },
+  { id: "uv-chemical", label: "Chemical UV filter", re: /avobenzone|homosalate|octocrylene|octisalate|oxybenzone|octinoxate|ensulizole|bemotrizinol|bisoctrizole|ethylhexyl triazone|methoxycinnamate|butyl methoxydibenzoylmethane/, how: "Absorbs UV in the skin." },
+  { id: "mg-hydroxide", label: "Magnesium hydroxide", shelf: "deodorant", re: /magnesium hydroxide/, how: "Shifts underarm pH alkaline, slow-release, so odor bacteria can't thrive." },
+  { id: "baking-soda", label: "Baking soda", shelf: "deodorant", re: /sodium bicarbonate/, how: "Shifts underarm pH alkaline against odor bacteria (and can irritate)." },
+  { id: "aluminum", label: "Aluminum salt", shelf: "deodorant", re: /alumin(i)?um (chlorohydrate|sesquichlorohydrate|zirconium|chloride)/, how: "Plugs the sweat duct. It works; that's the problem." },
+  { id: "absorbent", label: "Absorbent powder", shelf: "deodorant", re: /arrowroot|maranta arundinacea|tapioca|zea mays.*starch|corn ?starch|kaolin/, how: "Absorbs moisture." },
+  { id: "lauric", label: "Coconut oil (lauric acid)", shelf: "deodorant", re: /cocos nucifera.*oil|coconut oil/, how: "Lauric acid turns into monolaurin: directly antibacterial." },
+  { id: "inulin", label: "Inulin (prebiotic)", shelf: "deodorant", re: /\binulin\b/, how: "Prebiotic: steers the underarm microbiome." },
+  { id: "zinc-ric", label: "Zinc ricinoleate", shelf: "deodorant", re: /zinc ricinoleate/, how: "Traps odor molecules." },
+  { id: "ha-tooth", label: "Hydroxyapatite", re: /hydroxyapatite/, how: "Remineralizes enamel." },
+  { id: "fluoride", label: "Fluoride", re: /fluoride|monofluorophosphate/, how: "Strengthens enamel." },
+  { id: "peroxide", label: "Hydrogen peroxide", shelf: "toothpaste", re: /hydrogen peroxide|carbamide peroxide/, how: "Oxidizes surface stain." },
+  { id: "dha", label: "DHA", re: /dihydroxyacetone/, how: "A sugar that browns dead skin cells." },
+  { id: "erythrulose", label: "Erythrulose", re: /erythrulose/, how: "A slower sugar tan that evens out DHA." },
+  { id: "niacinamide", label: "Niacinamide", re: /niacinamide/, how: "Vitamin B3: supports the barrier and evens tone." },
+  { id: "vitc", label: "Vitamin C", re: /ascorbic acid|ascorbyl|ascorbate|3-o-ethyl ascorbic/, how: "Antioxidant: brightens and supports collagen." },
+  { id: "retinoid", label: "Retinoid", re: /retinol|retinal\b|retinaldehyde|retinyl|hydroxypinacolone retinoate|tretinoin|adapalene/, how: "Vitamin A: speeds cell turnover." },
+  { id: "bakuchiol", label: "Bakuchiol", re: /bakuchiol/, how: "Plant active studied as a gentler retinol alternative." },
+  { id: "ha", label: "Hyaluronic acid", re: /hyaluron/, how: "Humectant: pulls water into the skin." },
+  { id: "bha", label: "BHA (salicylic)", re: /salicylic acid|betaine salicylate|salix (alba|nigra)|willow bark/, how: "Oil-soluble: exfoliates inside the pore." },
+  { id: "aha", label: "AHA / PHA", re: /glycolic acid|lactic acid|mandelic acid|gluconolactone|lactobionic acid/, how: "Loosens the bonds holding dead cells together." },
+  { id: "sulfur", label: "Sulfur", re: /\bsulfur\b|\bsulphur\b/, how: "Dries blemishes and fights acne bacteria." },
+  { id: "bpo", label: "Benzoyl peroxide", re: /benzoyl peroxide/, how: "Kills acne bacteria." },
+  { id: "oat", label: "Colloidal oatmeal", re: /colloidal oat|avena sativa.*(kernel|meal|flour)/, how: "Soothes itch and protects the barrier." },
+  { id: "urea", label: "Urea", re: /\burea\b/, how: "Keratolytic: softens callus from the inside." },
+  { id: "copper", label: "Copper peptide", re: /copper tripeptide|ghk-cu|copper peptide/, how: "Signals repair and collagen." },
+  { id: "caffeine", label: "Caffeine", re: /\bcaffeine\b/, how: "Tightens blood vessels: less puffiness and shadow." },
+  { id: "centella", label: "Centella", re: /centella asiatica|madecassoside|asiaticoside/, how: "Soothes and supports barrier repair." },
+  { id: "azelaic", label: "Azelaic acid", re: /azelaic acid/, how: "Calms redness and evens tone." },
+  { id: "antifungal", label: "Antifungal", re: /ketoconazole|zinc pyrithione|piroctone olamine|selenium sulfide|melaleuca alternifolia/, how: "Targets the Malassezia yeast behind flaky, itchy scalp." },
+  { id: "ceramide", label: "Ceramides", re: /ceramide/, how: "Barrier lipids that hold moisture in." },
+];
+// What the product's NAME promises → which mechanisms can back it. Missing = the formula can't keep the promise.
+const NAME_CLAIMS = [
+  { re: /niacinamide|vitamin b3|\bb3\b/, ids: ["niacinamide"], label: "niacinamide" },
+  { re: /vitamin c|\bvit\.? c\b|ascorbic/, ids: ["vitc"], label: "vitamin C" },
+  { re: /retinol|retinal|retinoid/, ids: ["retinoid"], label: "a retinoid" },
+  { re: /bakuchiol/, ids: ["bakuchiol"], label: "bakuchiol" },
+  { re: /hyaluronic/, ids: ["ha"], label: "hyaluronic acid" },
+  { re: /salicylic|\bbha\b/, ids: ["bha"], label: "BHA" },
+  { re: /glycolic|\baha\b|mandelic|lactic acid/, ids: ["aha"], label: "an AHA" },
+  { re: /\bsulfur\b|\bsulphur\b/, ids: ["sulfur"], label: "sulfur" },
+  { re: /colloidal oat|oatmeal/, ids: ["oat"], label: "colloidal oatmeal" },
+  { re: /\burea\b/, ids: ["urea"], label: "urea" },
+  { re: /copper peptide|ghk/, ids: ["copper"], label: "copper peptides" },
+  { re: /caffeine/, ids: ["caffeine"], label: "caffeine" },
+  { re: /centella|\bcica\b/, ids: ["centella"], label: "centella" },
+  { re: /azelaic/, ids: ["azelaic"], label: "azelaic acid" },
+  { re: /anti-?dandruff/, ids: ["antifungal"], label: "an antifungal" },
+  { re: /ceramide/, ids: ["ceramide"], label: "ceramides" },
+  { re: /\bspf\b|sunscreen|sun ?cream|sunblock|sun protection/, ids: ["uv-mineral", "uv-chemical"], label: "a UV filter" },
+  { re: /self.?tan|sunless|tanning (mousse|lotion|drops|water)/, ids: ["dha", "erythrulose"], label: "a tanning active" },
+  { re: /hydroxyapatite|nano.?ha\b/, ids: ["ha-tooth"], label: "hydroxyapatite" },
+  { re: /fluoride/, ids: ["fluoride"], label: "fluoride" },
+];
+// anything listed after one of these is under 1% (phenoxyethanol is capped at 1%; fragrance sits near the end)
+const ONE_PERCENT = /phenoxyethanol|\bparfum\b|\bfragrance\b|\baroma\b/;
+
+export function findActives(tokens, shelf) {
+  const out = [];
+  tokens.forEach((token, index) => {
+    const t = token.toLowerCase();
+    const m = MECHANISMS.find((x) => x.re.test(t) && (!x.shelf || x.shelf === shelf?.id));
+    if (m && !out.some((o) => o.mech.id === m.id)) out.push({ mech: m, token, index });
+  });
+  return out;
+}
+
+export function efficacyCheck(product, tokens, shelf) {
+  if (!tokens.length) return { status: "unknown", short: "no label", detail: "No label on file, so the mechanism can't be read.", actives: [] };
+  const actives = findActives(tokens, shelf);
+  const name = String(product.name || "").toLowerCase();
+  const claims = NAME_CLAIMS.filter((c) => c.re.test(name));
+  const missing = claims.filter((c) => !actives.some((a) => c.ids.includes(a.mech.id)));
+  if (missing.length) {
+    const what = missing.map((c) => c.label).join(" and ");
+    return { status: "fail", short: "claim not in formula", actives,
+      detail: `The name promises ${what}. The ingredient list doesn't have it.`,
+      reason: { type: "efficacy", label: `Claims ${what}; the formula doesn't have it`, tier: "hard",
+        detail: "Efficacy: the name promises an active the ingredient list can't back." } };
+  }
+  const marker = tokens.findIndex((t) => ONE_PERCENT.test(t.toLowerCase()));
+  const hero = actives.filter((a) => claims.some((c) => c.ids.includes(a.mech.id)));
+  const low = marker >= 0 ? hero.filter((a) => a.index > marker) : [];
+  if (low.length) {
+    return { status: "warn", short: "under 1%", actives,
+      detail: `${low.map((a) => a.token).join(", ")} is listed after ${tokens[marker]}, so it's under 1%. Below 1%, a hero active is label decoration.` };
+  }
+  if (actives.length) {
+    return { status: "clear", short: actives.slice(0, 2).map((a) => a.mech.label.toLowerCase()).join(" + "), actives,
+      detail: actives.map((a) => `${a.token}: ${a.mech.how}`).join(" ") + " The dose isn't on the label; Andra's vetting checks it." };
+  }
+  return { status: "unknown", short: "no active claim", actives, detail: "No hero active on this label for the scanner to check." };
+}
+
 // The four pillars of the Tox Zero Standard (the guide's own page), in display order.
 export const PILLARS = [
   { key: "ingredients", label: "Ingredients", icon: "drop",
@@ -127,7 +227,7 @@ export const PILLARS = [
   { key: "owner", label: "Transparency", icon: "owner",
     about: "Who gets the money. Brands owned by conglomerates that profit from the products the guide replaces fail, and so do the brands on the guide's Wall of Claim. Good owners pass." },
   { key: "efficacy", label: "Efficacy", icon: "flask",
-    about: "Does it actually work? Clean isn't enough. Only a human can test this, and every Tox Zero pick passed. A scanner can't." },
+    about: "Clean isn't the finish line; function is. Efficacy is the science of the mechanism: does what's in it do what the label claims, at a dose that works? Below 1%, label order is arbitrary, and a hero active listed there is label decoration. The scanner names each active and how it works, and catches a claim the formula can't back. Andra's vetting checks the dose." },
 ];
 
 // Split an INCI list on top-level commas/semicolons, keeping "1,2-hexanediol" and (parenthesised, parts) whole.
@@ -355,9 +455,14 @@ function packagingLine(r, product, bifl) {
 }
 
 function efficacyLine(r) {
-  return r.verdict === "pick"
-    ? { title: "EFFICACY", status: "pass", word: "Tested", short: "tested", detail: "Andra tested it. It does what it claims." }
-    : { title: "EFFICACY", status: "unknown", word: "Untested", short: "untested", detail: "Only a human can test this. It isn't in the guide yet." };
+  if (r.verdict === "pick") {
+    const hi = String(r.pick.ingredients || "").replace(/^\d+\s*/, "").trim();
+    return { title: "EFFICACY", status: "pass", word: "Mechanism checked", short: "mechanism checked",
+      detail: `Andra checked the mechanism and the dose${hi ? `: ${hi}` : ""}.` };
+  }
+  const e = r.efficacy || { status: "unknown", short: "no label", detail: "No label on file." };
+  const word = { fail: "Fails", warn: "Under 1%", clear: "Actives found", unknown: "Not checked" }[e.status];
+  return { title: "EFFICACY", status: e.status, word, short: e.short, detail: e.detail };
 }
 
 function ownerLine(r) {
@@ -473,12 +578,14 @@ export function evaluate(product, data) {
   }
   const pk = packagingReasons(product, tokens, shelf, data.picks);
   reasons.push(...pk.reasons);
+  const efficacy = efficacyCheck(product, tokens, shelf);
+  if (efficacy.reason) reasons.push(efficacy.reason);
 
   const lookalikes = lookalikePicks(product, data.picks);
   if (reasons.length) {
-    return withCard({ verdict: "reject", product, shelf, reasons, notes, swaps: swapsFor(shelf, data.picks), lookalikes }, tokens, pk.bifl);
+    return withCard({ verdict: "reject", product, shelf, reasons, notes, efficacy, swaps: swapsFor(shelf, data.picks), lookalikes }, tokens, pk.bifl);
   }
-  return withCard({ verdict: "unvetted", product, shelf, reasons: [], notes, swaps: [], lookalikes }, tokens, pk.bifl);
+  return withCard({ verdict: "unvetted", product, shelf, reasons: [], notes, efficacy, swaps: [], lookalikes }, tokens, pk.bifl);
 }
 
 function withCard(r, tokens = [], bifl = false) {

@@ -2,7 +2,7 @@
 // Look: light raw photo + frosted glass + navy (tox-zero-brand DEFAULT LOOK).
 // A scan opens a pull-up sheet over the scanner (Yuka pattern): the peek shows the photo, the stamp and the
 // four-pillar ring; pulled up, it shows the pillar bars, the swaptions and every ingredient, each with an ⓘ.
-import { buildData, evaluate, fromOBF, normCode, searchPicks, swapsFor, scanIngredients, INGREDIENT_RULES, EXPLAIN, PILLARS } from "./engine.js";
+import { buildData, evaluate, fromOBF, normCode, searchPicks, swapsFor, scanIngredients, findActives, INGREDIENT_RULES, EXPLAIN, PILLARS, MECHANISMS } from "./engine.js";
 
 const OBF = "https://world.openbeautyfacts.org";
 const FIELDS = "code,product_name,product_name_en,generic_name,brands,ingredients_text,ingredients_text_en,packaging,packaging_tags,packagings,categories_tags,image_front_small_url";
@@ -227,11 +227,14 @@ const LV = { hard: "hard line", dotted: "dotted line", note: "heads-up" };
 // red = on the Nasties (hard or dotted line) · yellow = the guide's allowed compromises · green = not flagged
 const COLOR = (rule) => !rule ? "green" : rule.tier === "note" ? "yellow" : "red";
 const ORDER = { red: 0, yellow: 1, green: 2 };
-function inciRows(p) {
+function inciRows(p, shelf) {
   const { tokens, hits } = scanIngredients(p?.ingredients || "");
   const byToken = new Map(hits.map((h) => [h.match, h.rule]));
-  return tokens.map((t) => ({ t, rule: byToken.get(t), c: COLOR(byToken.get(t)) })).sort((a, b) => ORDER[a.c] - ORDER[b.c]);
+  const act = new Map(findActives(tokens, shelf).map((a) => [a.token, a.mech]));   // the mechanism-carrying ingredients
+  return tokens.map((t) => ({ t, rule: byToken.get(t), mech: act.get(t), c: COLOR(byToken.get(t)) }))
+    .sort((a, b) => ORDER[a.c] - ORDER[b.c] || (b.mech ? 1 : 0) - (a.mech ? 1 : 0));
 }
+const ACT = `<span class="act">${icon("flask")}active</span>`;
 // one stacked bar: how much of the label is red, yellow, green
 function mix(rows) {
   const n = { red: 0, yellow: 0, green: 0 };
@@ -241,13 +244,14 @@ function mix(rows) {
     <div class="mixkey"><span><i class="red"></i>${n.red} flagged</span><span><i class="yellow"></i>${n.yellow} heads-up</span><span><i class="green"></i>${n.green} not flagged</span></div>`;
 }
 // every ingredient on the label, flagged ones first, each flag with an ⓘ (Yuka pattern)
-function ingredients(p) {
+function ingredients(p, shelf) {
   if (!p?.ingredients) return "";
-  const rows = inciRows(p);
-  const row = ({ t, rule, c }, hidden) => `<div class="ing-row${rule ? "" : " quiet"}"${hidden ? " hidden" : ""}>
-      <div><div class="nm">${esc(t)}</div><div class="lv ${c}"><i></i>${rule ? `${esc(rule.label)} · ${LV[rule.tier]}` : "not flagged"}</div></div>
-      ${rule ? `<button class="ibtn" type="button" data-info="rule:${rule.id}" aria-label="About ${esc(rule.label)}">${icon("info")}</button>` : "<span></span>"}</div>`;
-  const shown = Math.max(8, rows.filter((x) => x.rule).length);
+  const rows = inciRows(p, shelf);
+  const row = ({ t, rule, mech, c }, hidden) => `<div class="ing-row${rule || mech ? "" : " quiet"}"${hidden ? " hidden" : ""}>
+      <div><div class="nm">${esc(t)}${mech ? ACT : ""}</div><div class="lv ${c}"><i></i>${rule ? `${esc(rule.label)} · ${LV[rule.tier]}` : mech ? `${esc(mech.how)}` : "not flagged"}</div></div>
+      ${rule ? `<button class="ibtn" type="button" data-info="rule:${rule.id}" aria-label="About ${esc(rule.label)}">${icon("info")}</button>`
+        : mech ? `<button class="ibtn" type="button" data-info="mech:${mech.id}" aria-label="How ${esc(mech.label)} works">${icon("info")}</button>` : "<span></span>"}</div>`;
+  const shown = Math.max(8, rows.filter((x) => x.rule || x.mech).length);
   return `<h3 class="section">ingredients.</h3><div class="ing glass">${mix(rows)}${rows.map((x, i) => row(x, i >= shown)).join("")}
     ${rows.length > shown ? `<button class="more-btn" type="button" onclick="this.parentNode.querySelectorAll('.ing-row[hidden]').forEach(e=>e.hidden=false);this.remove()">show all ${rows.length}</button>` : ""}</div>`;
 }
@@ -274,7 +278,7 @@ function renderResult(r) {
     return openSheet(`${peek(r, p.name, brand, p.image)}
       ${r.swaps.length ? `<h3 class="section">the swaptions.</h3>${versus(p, r.swaps[0])}${swapCards(r.swaps)}`
         : `<p class="note">No guide pick for this shelf yet. It's on the vet list.</p>`}
-      ${bars(r)}${ingredients(p)}${attrib(p)}`);
+      ${bars(r)}${ingredients(p, r.shelf)}${attrib(p)}`);
   }
   const nothing = !p.source;
   const shelfSwaps = r.shelf ? swapsFor(r.shelf, data.picks, 3) : [];
@@ -284,7 +288,7 @@ function renderResult(r) {
       ${pic(k.image, k.name, "thumb")}<span class="txt"><span class="n">The guide's ${esc(k.name)}?</span><span class="m">barcode not confirmed · tap</span></span></button></li>`).join("")}</ul>` : ""}
     ${bars(r)}
     ${shelfSwaps.length ? `<h3 class="section">already vetted.</h3><p class="section-sub">${esc(r.shelf.label.toLowerCase())} picks from the guide</p>${swapCards(shelfSwaps)}` : ""}
-    ${ingredients(p)}
+    ${ingredients(p, r.shelf)}
     ${nothing ? `<a class="pill glass cta" href="#/" onclick="setTimeout(()=>document.querySelector('#searchInput').focus(),50)">${icon("search")}Search by name</a>` : ""}
     ${attrib(p)}`);
 }
@@ -309,14 +313,33 @@ function showInfo(kind, key, from) {
       ${ex.where ? `<div class="blk"><span>WHERE IT HIDES</span><p>${esc(ex.where)}</p></div>` : ""}
       ${ex.instead ? `<div class="blk"><span>WHAT THE GUIDE USES INSTEAD</span><p>${esc(ex.instead)}</p></div>` : ""}
       <p class="src">From the Tox Zero guide's Nasties pages.</p>`;
+  } else if (kind === "mech") {
+    const m = MECHANISMS.find((x) => x.id === key);
+    const a = current?.efficacy?.actives?.find((x) => x.mech.id === key);
+    const low = current?.card?.efficacy?.status === "warn" && a && current.card.efficacy.detail.includes(a.token);
+    html = `${from ? `<button class="info-back" type="button" data-info="pillar:${from}">${icon("back")}${from === "efficacy" ? "efficacy" : "all ingredients"}</button>` : ""}
+      <h4>${esc(m.label)}</h4>
+      <div class="tierline"><span class="act">${icon("flask")}active</span>THE MECHANISM</div>
+      ${a ? `<div class="blk"><span>ON THIS LABEL</span><p>${esc(a.token)}</p></div>` : ""}
+      <div class="blk"><span>HOW IT WORKS</span><p>${esc(m.how)}</p></div>
+      <div class="blk"><span>THE DOSE</span><p>${low ? "Listed below the 1% line, so it's label decoration." : "Labels don't print the dose. Below 1%, label order is arbitrary, and a hero active there is label decoration."}</p></div>`;
+  } else if (key === "efficacy") {
+    const pl = PILLARS[3], x = current?.card?.efficacy, actives = current?.efficacy?.actives || [];
+    html = `<h4>Efficacy</h4>
+      ${x ? `<div class="tierline"><span class="lv ${STATUS_COLOR[x.status]}"><i></i></span>${esc(x.word.toUpperCase())}</div>
+      <div class="blk"><span>THIS PRODUCT</span><p>${esc(current.verdict === "pick" ? x.detail : x.status === "clear" ? "Actives found. The dose isn't on the label; Andra's vetting checks it." : x.detail)}</p></div>` : ""}
+      ${actives.length ? `<div class="blk"><span>THE ACTIVES</span></div><div class="ilist">${actives.map((a) =>
+        `<button class="irow" type="button" data-info="mech:${a.mech.id}" data-from="efficacy"><span class="act">${icon("flask")}</span><span>${esc(a.token)}<small>${esc(a.mech.how)}</small></span><em>›</em></button>`).join("")}</div>` : ""}
+      <div class="blk"><span>WHAT TOX ZERO CHECKS</span><p>${esc(pl.about)}</p></div>`;
   } else if (key === "ingredients") {
     // the ingredients ⓘ IS the list: every ingredient, red / yellow / green, tap a red or yellow one for its why
-    const pl = PILLARS[0], x = current?.card?.ingredients, rows = inciRows(current?.product);
+    const pl = PILLARS[0], x = current?.card?.ingredients, rows = inciRows(current?.product, current?.shelf);
     const pickCell = current?.verdict === "pick" ? current.pick.ingredients : "";
     html = `<h4>Ingredients</h4>
       ${x ? `<div class="tierline"><span class="lv ${STATUS_COLOR[x.status]}"><i></i></span>${esc(x.word.toUpperCase())}${x.short ? ` · ${esc(x.short)}` : ""}</div>` : ""}
-      ${rows.length ? `${mix(rows)}<div class="ilist">${rows.map(({ t, rule, c }) => rule
+      ${rows.length ? `${mix(rows)}<div class="ilist">${rows.map(({ t, rule, mech, c }) => rule
           ? `<button class="irow" type="button" data-info="rule:${rule.id}" data-from="ingredients"><i class="${c}"></i><span>${esc(t)}</span><em>${esc(rule.label)} ›</em></button>`
+          : mech ? `<button class="irow" type="button" data-info="mech:${mech.id}" data-from="ingredients"><i class="${c}"></i><span>${esc(t)}</span><em>${ACT} ›</em></button>`
           : `<div class="irow"><i class="${c}"></i><span>${esc(t)}</span></div>`).join("")}</div>`
         : pickCell ? `<div class="blk"><span>FROM THE GUIDE</span><p>${esc(pickCell)}. Andra vetted every one.</p></div>`
         : `<div class="blk"><p>No label on file yet, so nothing could be checked.</p></div>`}
@@ -375,7 +398,7 @@ async function enrichPick(code, r) {
   if (!p?.ingredients || current !== r) return;
   r.product = { ...r.product, ingredients: p.ingredients, source: "obf", code };
   const box = $("#ingSection");
-  if (box) box.innerHTML = ingredients(r.product) + attrib(r.product);
+  if (box) box.innerHTML = ingredients(r.product, r.shelf) + attrib(r.product);
 }
 
 function routePick(id) {
