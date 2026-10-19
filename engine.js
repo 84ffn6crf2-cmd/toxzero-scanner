@@ -85,6 +85,51 @@ export const INGREDIENT_RULES = [
     why: "Synthetic vitamin E. A compromise the guide allows in two picks." },
 ];
 
+// ⓘ explainers. "where" = the PRODUCTS column of the guide's Nasties pages (pp. 122–124 of the live PDF);
+// "instead" only where the guide itself names the cleaner route. Never invent either.
+export const EXPLAIN = {
+  fragrance: { where: "Almost everything scented, including \"unscented\" (masking)", instead: "Brands that list every essential oil by name" },
+  flavor: { where: "Toothpaste, lip balm, mouthwash", instead: "Brands that list every flavor oil by name" },
+  parabens: { where: "Shampoo, lotion, makeup, deodorant", instead: "The class is easy to replace, so the guide replaces it" },
+  phthalates: { where: "Synthetic fragrance, nail polish, vinyl packaging" },
+  formaldehyde: { where: "Nail polish, hair treatments, eyelash glue, some preservatives" },
+  oxybenzone: { where: "Chemical sunscreens, SPF lip balms, SPF foundations", instead: "Mineral SPF" },
+  pfas: { where: "Long-wear makeup, waterproof mascara, dental floss" },
+  dyes: { where: "Permanent hair dye, dandruff shampoo, darker makeup pigments" },
+  triclosan: { where: "Antibacterial soap, some toothpaste, deodorant" },
+  microplastic: { where: "Scrubs, long-wear makeup, gels, primers" },
+  aluminum: { where: "Antiperspirants, some toothpaste", instead: "A deodorant, which only has to cover smell" },
+  musks: { where: "Perfume, body lotion, laundry detergent, \"clean\" fragrances" },
+  solvents: { where: "Nail polish, nail polish remover, hair smoothing treatments", instead: "Water-based polish" },
+  bisphenols: { where: "Plastic packaging, can linings, thermal-paper receipts", instead: "Glass or aluminum" },
+  isothiazolinones: { where: "Shampoo, conditioner, baby wipes, \"clean\" preservative systems" },
+  phenoxyethanol: { where: "Lotions, serums, baby products, \"clean\" brands", instead: "Rosemary extract, leuconostoc ferment, sodium benzoate" },
+  sulfates: { where: "Shampoo, body wash, cleansers, toothpaste", instead: "SCI, SLSA, decyl or coco glucoside" },
+  peg: { where: "Creams, cleansers, hair conditioner" },
+  polysorbates: { where: "Cleansers, moisturizers, serums, \"natural\" emulsifiers" },
+  butyloctyl: { where: "Sunscreens and creamy textures (a UV-filter solvent and emollient)" },
+  petro: { where: "Lip balm (Vaseline, Carmex), lotion, baby oil, ointments, waxy sticks" },
+  silicones: { where: "Primers, serums, hair smoothing products" },
+  bht: { where: "Lipstick, sunscreen, moisturizer", instead: "Vitamin E or rosemary extract" },
+  ethanolamines: { where: "Foaming cleansers, \"plant-based\" surfactant blends" },
+  talc: { where: "Powder, eyeshadow, blush, baby powder" },
+  propellant: { where: "Hairspray, dry shampoo, spray sunscreen, aerosol formats" },
+  hexanediol: { where: "Serums and toners" },
+  tocoacetate: { where: "Lotions, serums, \"vitamin E\" claims", instead: "Natural mixed tocopherols" },
+};
+
+// The four pillars of the Tox Zero Standard (the guide's own page), in display order.
+export const PILLARS = [
+  { key: "ingredients", label: "Ingredients", icon: "drop",
+    about: "Checked against the guide's Nasties. Hard lines: no pick contains them. Dotted lines: picks skip them. Every flag names the exact ingredient on the label." },
+  { key: "packaging", label: "Packaging", icon: "bottle",
+    about: "Packaging is part of the formula. Oils pull plastic additives out of the container and into the product. A consumable in plastic is never zero waste. End of life shows only when it's on record." },
+  { key: "owner", label: "Transparency", icon: "owner",
+    about: "Who gets the money. Brands owned by conglomerates that profit from the products the guide replaces fail, and so do the brands on the guide's Wall of Claim. Good owners pass." },
+  { key: "performance", label: "Performance", icon: "flask",
+    about: "Does it actually work? Clean isn't enough. Only a human can test this, and every Tox Zero pick passed. A scanner can't." },
+];
+
 // Split an INCI list on top-level commas/semicolons, keeping "1,2-hexanediol" and (parenthesised, parts) whole.
 export function splitIngredients(text) {
   const out = [];
@@ -309,17 +354,23 @@ function packagingLine(r, product, bifl) {
   return { title: "PACKAGING", status: "clear", word: "No flags", short: material.toLowerCase(), detail: `${what}. ${end}` };
 }
 
+function performanceLine(r) {
+  return r.verdict === "pick"
+    ? { title: "PERFORMANCE", status: "pass", word: "Tested", short: "tested", detail: "Andra tested it. It does what it claims." }
+    : { title: "PERFORMANCE", status: "unknown", word: "Untested", short: "untested", detail: "Only a human can test this. It isn't in the guide yet." };
+}
+
 function ownerLine(r) {
-  if (r.verdict === "pick") return { title: "OWNER", status: "pass", word: "Vetted", short: "vetted", detail: "Checked when Andra vetted it." };
+  if (r.verdict === "pick") return { title: "TRANSPARENCY", status: "pass", word: "Vetted", short: "vetted", detail: "Checked when Andra vetted it." };
   const o = r.reasons.find((x) => x.type === "owner");
   if (o) {
     const wall = /Wall of Claim/.test(o.label);
     const who = wall ? "Wall of Claim" : o.label.replace(/^Owned by /, "").replace(/ since \d{4}$/, "");
-    return { title: "OWNER", status: "fail", word: "Fails", short: who, detail: o.label };
+    return { title: "TRANSPARENCY", status: "fail", word: "Fails", short: who, detail: o.label };
   }
   const passNote = r.notes.find((x) => x.type === "owner");
-  if (passNote) return { title: "OWNER", status: "clear", word: "Good owner", short: "good owner", detail: passNote.label };
-  return { title: "OWNER", status: "unknown", word: "Not on file", short: "not on file", detail: "No owner on record." };
+  if (passNote) return { title: "TRANSPARENCY", status: "clear", word: "Good owner", short: "good owner", detail: passNote.label };
+  return { title: "TRANSPARENCY", status: "unknown", word: "Not on file", short: "not on file", detail: "No owner on record." };
 }
 
 // ── picks + swaps ────────────────────────────────────────────────────────────
@@ -429,7 +480,7 @@ export function evaluate(product, data) {
 }
 
 function withCard(r, tokens = [], bifl = false) {
-  r.card = { ingredients: ingredientsLine(r, tokens), packaging: packagingLine(r, r.product, bifl), owner: ownerLine(r) };
+  r.card = { ingredients: ingredientsLine(r, tokens), packaging: packagingLine(r, r.product, bifl), owner: ownerLine(r), performance: performanceLine(r) };
   return r;
 }
 

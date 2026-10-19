@@ -32,6 +32,8 @@
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15M13 6l6 6-6 6"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6h.01"/></symbol>
+  <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9.5 3h5M10.5 3v6L5.6 17.6A2.3 2.3 0 0 0 7.6 21h8.8a2.3 2.3 0 0 0 2-3.4L13.5 9V3M7.6 15h8.8"/></symbol>
   <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3M8 9v6M11 9v6M14 9v6M16.5 9v6"/></symbol>
 </svg>
 
@@ -85,6 +87,18 @@
 <footer class="foot">
   <p>Only Andra's guide approves. Product data: <a href="https://world.openbeautyfacts.org" target="_blank" rel="noopener">Open Beauty Facts</a>, <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL</a>.</p>
 </footer>
+
+<div class="sheet" id="sheet" hidden aria-live="polite">
+  <div class="grab" id="grab" data-drag aria-label="Pull up for details"><i></i></div>
+  <div class="sheet-body" id="sheetBody"></div>
+</div>
+
+<div class="info" id="info" hidden>
+  <div class="info-card" role="dialog" aria-modal="true">
+    <button class="info-x" id="infoClose" type="button" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button>
+    <div id="infoBody"></div>
+  </div>
+</div>
 
 <div class="busy" id="busy" hidden><span></span></div>
 
