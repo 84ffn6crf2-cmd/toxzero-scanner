@@ -2,7 +2,7 @@
 //
 // Three verdicts, nothing else:
 //   pick      — in Andra's guide (barcode confirmed against the brand's own store). Only the guide approves.
-//   flagged   — fails one of the Fake-Clean Reject tests; every reason names the exact ingredient, owner or packaging.
+//   reject    — fails one of the Fake-Clean Reject tests; every reason names the exact ingredient, owner or packaging.
 //   unvetted  — everything else. No flags found is NOT an approval.
 //
 // Rules: the guide's Nasties pages (hard + dotted lines), .claude/rules/brand-values.md
@@ -126,7 +126,7 @@ export const PILLARS = [
     about: "Packaging is part of the formula. Oils pull plastic additives out of the container and into the product. A consumable in plastic is never zero waste. End of life shows only when it's on record." },
   { key: "owner", label: "Transparency", icon: "owner",
     about: "Who gets the money. Brands owned by conglomerates that profit from the products the guide replaces fail, and so do the brands on the guide's Wall of Claim. Good owners pass." },
-  { key: "performance", label: "Performance", icon: "flask",
+  { key: "efficacy", label: "Efficacy", icon: "flask",
     about: "Does it actually work? Clean isn't enough. Only a human can test this, and every Tox Zero pick passed. A scanner can't." },
 ];
 
@@ -354,10 +354,10 @@ function packagingLine(r, product, bifl) {
   return { title: "PACKAGING", status: "clear", word: "No flags", short: material.toLowerCase(), detail: `${what}. ${end}` };
 }
 
-function performanceLine(r) {
+function efficacyLine(r) {
   return r.verdict === "pick"
-    ? { title: "PERFORMANCE", status: "pass", word: "Tested", short: "tested", detail: "Andra tested it. It does what it claims." }
-    : { title: "PERFORMANCE", status: "unknown", word: "Untested", short: "untested", detail: "Only a human can test this. It isn't in the guide yet." };
+    ? { title: "EFFICACY", status: "pass", word: "Tested", short: "tested", detail: "Andra tested it. It does what it claims." }
+    : { title: "EFFICACY", status: "unknown", word: "Untested", short: "untested", detail: "Only a human can test this. It isn't in the guide yet." };
 }
 
 function ownerLine(r) {
@@ -474,13 +474,13 @@ export function evaluate(product, data) {
 
   const lookalikes = lookalikePicks(product, data.picks);
   if (reasons.length) {
-    return withCard({ verdict: "flagged", product, shelf, reasons, notes, swaps: swapsFor(shelf, data.picks), lookalikes }, tokens, pk.bifl);
+    return withCard({ verdict: "reject", product, shelf, reasons, notes, swaps: swapsFor(shelf, data.picks), lookalikes }, tokens, pk.bifl);
   }
   return withCard({ verdict: "unvetted", product, shelf, reasons: [], notes, swaps: [], lookalikes }, tokens, pk.bifl);
 }
 
 function withCard(r, tokens = [], bifl = false) {
-  r.card = { ingredients: ingredientsLine(r, tokens), packaging: packagingLine(r, r.product, bifl), owner: ownerLine(r), performance: performanceLine(r) };
+  r.card = { ingredients: ingredientsLine(r, tokens), packaging: packagingLine(r, r.product, bifl), owner: ownerLine(r), efficacy: efficacyLine(r) };
   return r;
 }
 

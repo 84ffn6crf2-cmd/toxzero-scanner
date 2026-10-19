@@ -160,7 +160,7 @@ const pic = (src, name, cls = "") => src
   ? `<img class="${cls}" src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML='<div class=&quot;ph ${cls}&quot;>${initial(name)}</div>'">`
   : `<div class="ph ${cls}">${initial(name)}</div>`;
 
-const STAMP = { pick: `${icon("check")}Tox Zero pick`, flagged: `${icon("x")}Flagged`, unvetted: `${icon("q")}Not vetted yet` };
+const STAMP = { pick: `${icon("check")}Tox Zero pick`, reject: `${icon("x")}Reject`, unvetted: `${icon("q")}Not vetted yet` };
 const SHORT_ST = { pass: "passes", fail: "fails", warn: "⚠", clear: "no flags", unknown: "unknown" };
 
 // four arcs, one per pillar, coloured by status — the score at a glance
@@ -171,16 +171,18 @@ function ring(r) {
     return `<circle class="seg ${st}" cx="50" cy="50" r="${R}" stroke-dasharray="${seg - gap} ${C - seg + gap}"
       stroke-dashoffset="${-i * seg}" transform="rotate(${-90 + (gap / 2 / C) * 360} 50 50)"><title>${pl.label}: ${st}</title></circle>`;
   }).join("");
-  // minimal labels: each arc's pillar icon sits in the corner beside it (same icons as the bars)
+  // minimal labels: each pillar's name in tiny caps, curved along the outside of its arc.
+  // Top arcs run clockwise (text sits outside); bottom arcs run counter-clockwise so the words stay upright.
   const labels = PILLARS.map((pl, i) => {
-    const th = (45 + i * 90) * Math.PI / 180, rr = 57, sz = 13;
-    const x = 50 + rr * Math.sin(th) - sz / 2, y = 50 - rr * Math.cos(th) - sz / 2;
-    return `<use class="ricon" href="#i-${pl.icon}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${sz}" height="${sz}"><title>${pl.label}</title></use>`;
+    const bottom = i === 1 || i === 2, rr = bottom ? 56.5 : 49.5, a0 = i * 90 + 3, a1 = (i + 1) * 90 - 3;
+    const pt = (deg) => [50 + rr * Math.sin(deg * Math.PI / 180), 50 - rr * Math.cos(deg * Math.PI / 180)].map((v) => v.toFixed(2)).join(" ");
+    const d = bottom ? `M${pt(a1)} A${rr} ${rr} 0 0 0 ${pt(a0)}` : `M${pt(a0)} A${rr} ${rr} 0 0 1 ${pt(a1)}`;
+    return `<path id="rl${i}" d="${d}" fill="none"/><text class="rlabel"><textPath href="#rl${i}" startOffset="50%" text-anchor="middle">${pl.label.toUpperCase()}</textPath></text>`;
   }).join("");
-  const glyph = { pick: "✓", flagged: "✕", unvetted: "?" }[r.verdict];
+  const glyph = { pick: "✓", reject: "✕", unvetted: "?" }[r.verdict];
   const n = (s) => PILLARS.filter((pl) => r.card[pl.key].status === s).length;
-  const cap = r.verdict === "pick" ? `${n("pass")}/4 pillars${n("warn") ? " · ⚠" : ""}` : r.verdict === "flagged" ? `fails ${n("fail")} of 4` : `${n("clear")}/4 checked`;
-  return `<div class="ringbox"><svg class="ring" viewBox="0 0 100 100" role="img" aria-label="Four pillars: ${PILLARS.map((pl) => `${pl.label} ${r.card[pl.key].status}`).join(", ")}">${arcs}${labels}
+  const cap = r.verdict === "pick" ? `${n("pass")}/4 pillars${n("warn") ? " · ⚠" : ""}` : r.verdict === "reject" ? `fails ${n("fail")} of 4` : `${n("clear")}/4 checked`;
+  return `<div class="ringbox"><svg class="ring" viewBox="-10 -10 120 120" role="img" aria-label="Four pillars: ${PILLARS.map((pl) => `${pl.label} ${r.card[pl.key].status}`).join(", ")}">${arcs}${labels}
     <text class="glyph" x="50" y="61" text-anchor="middle">${glyph}</text></svg><div class="cap">${cap}</div></div>`;
 }
 
@@ -254,7 +256,7 @@ function renderResult(r) {
       ${p.code ? `<p class="attrib">Barcode matched to the brand's own store listing.</p>` : ""}`);
   }
   const brand = (p.brands || []).join(", ");
-  if (r.verdict === "flagged") {
+  if (r.verdict === "reject") {
     return openSheet(`${peek(r, p.name, brand, p.image)}
       ${r.swaps.length ? `<h3 class="section">the swaptions.</h3>${versus(p, r.swaps[0])}${swapCards(r.swaps)}`
         : `<p class="note">No guide pick for this shelf yet. It's on the vet list.</p>`}
@@ -334,7 +336,7 @@ async function routeBarcode(code) {
   }
   p = p || { code, name: "", brands: [] };
   r = evaluate(p, data);
-  if (r.verdict === "unvetted" || (r.verdict === "flagged" && !r.swaps.length)) vet.add(p);
+  if (r.verdict === "unvetted" || (r.verdict === "reject" && !r.swaps.length)) vet.add(p);
   renderResult(r);
 }
 
@@ -373,7 +375,7 @@ function routeStandard() {
     <p class="lead">Only Andra's guide says yes.</p>
     <div class="legend glass">
       ${legend("pass", "check", "Tox Zero pick", "In the guide. Passed all four pillars.")}
-      ${legend("fail", "x", "Flagged", "Fails a pillar. Here's the swaption.")}
+      ${legend("fail", "x", "Reject", "Fails a pillar. Here's the swaption.")}
       ${legend("unknown", "q", "Not vetted yet", "Everything else. No flags isn't a yes.")}
     </div>
     <p class="label">THE 4 PILLARS</p>
