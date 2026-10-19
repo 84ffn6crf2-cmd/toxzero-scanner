@@ -55,6 +55,13 @@ async function fetchJSON(url, ms = 9000) {
   finally { clearTimeout(t); }
 }
 
+// the team's live record for a barcode (vet queue Worker); merged before scoring, so a published score shows on the next scan
+async function lookupVetted(code) {
+  if (!data?.config?.vettedUrl) return null;
+  try { const v = await fetchJSON(`${data.config.vettedUrl}${code}`, 4000); if (v && v.code) { data.vetted[normCode(v.code)] = v; return v; } } catch {}
+  return null;
+}
+
 async function lookupOBF(code) {
   if (cache.has(code)) return cache.get(code);
   const tries = [code];
@@ -399,6 +406,7 @@ async function scorePending() {
   let done = 0;
   for (const x of waiting) {
     try {
+      await lookupVetted(x.code);
       const p = (await lookupOBF(x.code)) || { code: x.code, name: "", brands: [] };
       const r = evaluate(p, data);
       Object.assign(x, { verdict: r.verdict, name: r.pick?.name || p.name || "Unknown product", image: r.pick?.image || p.image || "" });
@@ -484,7 +492,9 @@ async function routeBarcode(code) {
   if (r.verdict === "pick") { renderResult(r); return enrichPick(code, r); }
   busy(true);
   let p = null, offline = false;
+  const team = lookupVetted(code);
   try { p = await lookupOBF(code); } catch { offline = true; }
+  if (await team) offline = false;          // the team's record is enough to score it
   busy(false);
   if (offline) {
     current = null;
