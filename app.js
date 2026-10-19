@@ -32,7 +32,13 @@ const intake = {
     catch { try { localStorage.setItem(INTAKE_KEY, JSON.stringify(list.slice(0, 20).map(({ front, label, ...x }) => x))); } catch {} }
   },
 };
-const paintVetCount = () => { $("#vetCount").textContent = " " + (vet.all().length + intake.all().length); };
+const PENDING_KEY = "tz-pending";
+const pending = {
+  all() { try { return JSON.parse(localStorage.getItem(PENDING_KEY)) || []; } catch { return []; } },
+  save(list) { try { localStorage.setItem(PENDING_KEY, JSON.stringify(list.slice(0, 50))); } catch {} },
+  add(code) { const l = pending.all().filter((x) => x.code !== code); l.unshift({ code, at: new Date().toISOString().slice(0, 10) }); pending.save(l); },
+};
+const paintVetCount = () => { $("#vetCount").textContent = " " + (vet.all().length + intake.all().length + pending.all().filter((x) => !x.verdict).length); };
 
 // ── data ──
 async function loadData() {
@@ -377,6 +383,39 @@ document.addEventListener("click", (e) => {
   if (e.target.id === "info" || e.target.closest("#infoClose")) $("#info").hidden = true;
 });
 
+// ── offline catch-up: when signal returns, send queued photos and score saved scans ──
+async function sendIntake() {
+  if (!data?.config?.intakeUrl || !navigator.onLine) return;
+  const list = intake.all();
+  for (const x of list.filter((e) => !e.sent)) {
+    try { const r = await fetch(data.config.intakeUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(x) }); if (r.ok) x.sent = true; } catch {}
+  }
+  intake.save(list);
+}
+async function scorePending() {
+  if (!navigator.onLine) return;
+  const list = pending.all(), waiting = list.filter((x) => !x.verdict);
+  if (!waiting.length) return;
+  let done = 0;
+  for (const x of waiting) {
+    try {
+      const p = (await lookupOBF(x.code)) || { code: x.code, name: "", brands: [] };
+      const r = evaluate(p, data);
+      Object.assign(x, { verdict: r.verdict, name: r.pick?.name || p.name || "Unknown product", image: r.pick?.image || p.image || "" });
+      if (r.verdict === "unvetted") vet.add(p);
+      done++;
+    } catch { break; }
+  }
+  pending.save(list);
+  if (done) toast(`${done} saved scan${done > 1 ? "s" : ""} scored`, "#/vet");
+}
+function toast(text, href) {
+  const t = Object.assign(document.createElement("a"), { className: "toast glass", href: href || "#/", textContent: text });
+  document.body.append(t);
+  setTimeout(() => t.remove(), 5000);
+}
+window.addEventListener("online", () => { sendIntake(); scorePending(); });
+
 // ── "help us vet it": photos + packaging, into the vet queue ──
 const submitted = (code) => !!code && intake.all().some((x) => x.code === code);
 async function shrink(file, max = 900) {
@@ -420,8 +459,8 @@ function showIntake(code) {
     const entry = { code: code || "", name: d.name, brand: d.brand, material: d.material || "", plasticTouches: d.touch || "",
       ingredients: d.ingredients || "", email: d.email || "", front: shots.front || "", label: shots.label || "", at: new Date().toISOString() };
     intake.save([entry, ...intake.all().filter((x) => !x.code || x.code !== entry.code)]);
-    if (data.config.intakeUrl) { try { await fetch(data.config.intakeUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(entry) }); } catch {} }
-    $("#infoBody").innerHTML = `<h4>Thank you.</h4><div class="blk"><p>${esc(entry.name || "It")} is in the vet queue. Once Tox Zero scores it, everyone who scans it sees the result.</p></div>
+    await sendIntake();
+    $("#infoBody").innerHTML = `<h4>Thank you.</h4><div class="blk"><p>${esc(entry.name || "It")} is in the vet queue${navigator.onLine ? "" : ". No signal right now, so it sends itself when you're back online"}. Once Tox Zero scores it, everyone who scans it sees the result.</p></div>
       <button class="pill navy cta" type="button" onclick="document.querySelector('#info').hidden=true">Done</button>`;
     paintVetCount();
     if (current) renderResult(current);
@@ -449,9 +488,11 @@ async function routeBarcode(code) {
   busy(false);
   if (offline) {
     current = null;
+    pending.add(code);
+    paintVetCount();
     return openSheet(`<div class="peek"><div class="img"><div class="ph">?</div></div>
-      <div><div class="name">Couldn't reach Open Beauty Facts</div><span class="stamp unvetted">${icon("q")}No signal</span></div><span></span></div>
-      <p class="note">Guide picks still work offline. Try search, or again in a sec.</p>`);
+      <div><div class="brand">${esc(code)}</div><div class="name">Saved for later</div><span class="stamp unvetted">${icon("q")}No signal</span></div><span></span></div>
+      <p class="note">It gets scored the moment you're back online. Guide picks still work offline.</p>`);
   }
   p = p || { code, name: "", brands: [] };
   r = evaluate(p, data);
@@ -517,10 +558,13 @@ function routeStandard() {
 }
 
 function routeVet() {
-  const list = vet.all(), subs = intake.all();
+  const list = vet.all(), subs = intake.all(), pend = pending.all();
   show(`${back}<h1 class="title">vet list.</h1><p class="sub">Not in the guide yet. The research queue.</p>
     ${subs.length ? `<p class="label">SENT TO BE VETTED</p><ul class="list">${subs.map((x) => `<li><div class="item glass">${pic(x.front, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name || "Unnamed")}</span>
-      <span class="m">${esc([x.brand, x.material, x.code].filter(Boolean).join(" · "))}${x.label ? " · label photo" : ""}</span></span></div></li>`).join("")}</ul>` : ""}
+      <span class="m">${esc([x.brand, x.material, x.code].filter(Boolean).join(" · "))}${x.label ? " · label photo" : ""}${x.sent ? " · sent" : " · on this phone"}</span></span></div></li>`).join("")}</ul>` : ""}
+    ${pend.length ? `<p class="label">SAVED WITHOUT SIGNAL</p><ul class="list">${pend.map((x) => `<li><button class="item glass" type="button" onclick="location.hash='#/p/${esc(x.code)}'">
+      ${pic(x.image, x.name || "?", "thumb")}<span class="txt"><span class="n">${esc(x.name || x.code)}</span>
+      <span class="m">${x.verdict ? { pick: "Tox Zero pick", reject: "Reject", unvetted: "Not vetted yet" }[x.verdict] : "waiting for signal"} · ${esc(x.at)}</span></span></button></li>`).join("")}</ul>` : ""}
     <p class="label">SCANNED, NOT IN THE GUIDE</p>
     ${list.length ? `<ul class="list">${list.map((x) => `<li><div class="item glass">${pic(x.image, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name)}</span>
       <span class="m">${esc([x.brand, x.code, x.at].filter(Boolean).join(" · "))}</span></span></div></li>`).join("")}</ul>
@@ -574,7 +618,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) stopC
 window.addEventListener("hashchange", route);
 
 paintVetCount();
-loadData().then(route);
+loadData().then(() => { route(); sendIntake(); scorePending(); });
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
