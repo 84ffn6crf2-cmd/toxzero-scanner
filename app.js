@@ -24,13 +24,22 @@ const vet = {
   },
   clear() { try { localStorage.removeItem(VET_KEY); } catch {} paintVetCount(); },
 };
-const paintVetCount = () => { $("#vetCount").textContent = " " + vet.all().length; };
+const INTAKE_KEY = "tz-intake";
+const intake = {
+  all() { try { return JSON.parse(localStorage.getItem(INTAKE_KEY)) || []; } catch { return []; } },
+  save(list) {
+    try { localStorage.setItem(INTAKE_KEY, JSON.stringify(list.slice(0, 20))); }
+    catch { try { localStorage.setItem(INTAKE_KEY, JSON.stringify(list.slice(0, 20).map(({ front, label, ...x }) => x))); } catch {} }
+  },
+};
+const paintVetCount = () => { $("#vetCount").textContent = " " + (vet.all().length + intake.all().length); };
 
 // ── data ──
 async function loadData() {
   const get = (f) => fetch(`data/${f}.json`).then((r) => r.json()).catch(() => ({}));
-  const [picks, barcodes, owners, wall, images] = await Promise.all(["picks", "barcodes", "owners", "wall", "images"].map(get));
-  data = buildData({ picks, barcodes, owners, wall, images });
+  const [picks, barcodes, owners, wall, images, vetted, config] = await Promise.all(["picks", "barcodes", "owners", "wall", "images", "vetted", "config"].map(get));
+  data = buildData({ picks, barcodes, owners, wall, images, vetted });
+  data.config = config || {};
 }
 
 async function fetchJSON(url, ms = 9000) {
@@ -181,14 +190,14 @@ function ring(r) {
   }).join("");
   const glyph = { pick: "✓", reject: "✕", unvetted: "?" }[r.verdict];
   const n = (s) => PILLARS.filter((pl) => r.card[pl.key].status === s).length;
-  const cap = r.verdict === "pick" ? `${n("pass")}/4 pillars${n("warn") ? " · ⚠" : ""}` : r.verdict === "reject" ? `fails ${n("fail")} of 4` : `${n("clear")}/4 checked`;
+  const ok = n("pass") + n("clear"), cap = [n("fail") && `${n("fail")} flagged`, ok && `${ok} cleared`, n("warn") && `${n("warn")} caution`].filter(Boolean).join(" · ") || "not checked";
   return `<div class="ringbox"><svg class="ring" viewBox="-10 -10 120 120" role="img" aria-label="Four pillars: ${PILLARS.map((pl) => `${pl.label} ${r.card[pl.key].status}`).join(", ")}">${arcs}${labels}
     <text class="glyph" x="50" y="61" text-anchor="middle">${glyph}</text></svg><div class="cap">${cap}</div></div>`;
 }
 
 function peek(r, name, brand, image) {
   return `<div class="peek">
-    <div class="img">${pic(image, name || brand)}</div>
+    <div class="img">${pic(image, name && name !== "Unknown product" ? name : "?")}</div>
     <div><div class="brand">${esc(brand || "")}</div><div class="name">${esc(name || "Unknown product")}</div>
       <span class="stamp ${r.verdict}">${STAMP[r.verdict]}</span></div>
     ${ring(r)}</div>`;
@@ -209,7 +218,7 @@ function swapCards(swaps) {
   return `<div class="swaps">${swaps.map((s) => {
     const pk = s.plastic || s.plastic_part ? `<span class="w">${icon("bottle")}${icon("warn")}</span>` : `<span>${icon("bottle")}${icon("check")}</span>`;
     return `<a class="swap glass" href="${esc(s.link)}" target="_blank" rel="noopener">
-      <div class="pic">${pic(s.image, s.name)}<span class="ok">${icon("check")}Tox Zero pick</span>${s.star ? `<span class="heart"><b>❤︎</b> Andra's</span>` : ""}</div>
+      <div class="pic">${pic(s.image, s.name)}<span class="ok">${icon("check")}Tox Zero pick</span>${s.star ? `<span class="heart"><b>❤︎</b> Andra loves</span>` : ""}</div>
       <span class="n">${esc(s.name)}</span>
       <span class="mini"><span>${icon("drop")}${icon("check")}</span>${pk}<span>${icon("owner")}${icon("check")}</span><span>${icon("flask")}${icon("check")}</span></span>
       <span class="sfoot"><span>${esc(s.price || "")}</span><span class="go">shop ${icon("arrow")}</span></span></a>`;
@@ -240,15 +249,16 @@ function mix(rows) {
   const n = { red: 0, yellow: 0, green: 0 };
   rows.forEach((x) => n[x.c]++);
   const seg = (c) => n[c] ? `<b class="${c}" style="flex:${n[c]}"></b>` : "";
-  return `<div class="mix" role="img" aria-label="${n.red} flagged, ${n.yellow} heads-up, ${n.green} not flagged">${seg("red")}${seg("yellow")}${seg("green")}</div>
-    <div class="mixkey"><span><i class="red"></i>${n.red} flagged</span><span><i class="yellow"></i>${n.yellow} heads-up</span><span><i class="green"></i>${n.green} not flagged</span></div>`;
+  const key = (c, w) => n[c] ? `<span><i class="${c}"></i>${n[c]} ${w}</span>` : "";
+  return `<div class="mix" role="img" aria-label="${n.red} flagged, ${n.yellow} caution, ${n.green} cleared">${seg("red")}${seg("yellow")}${seg("green")}</div>
+    <div class="mixkey">${key("red", "flagged")}${key("yellow", "caution")}${key("green", "cleared")}</div>`;
 }
 // every ingredient on the label, flagged ones first, each flag with an ⓘ (Yuka pattern)
 function ingredients(p, shelf) {
   if (!p?.ingredients) return "";
   const rows = inciRows(p, shelf);
   const row = ({ t, rule, mech, c }, hidden) => `<div class="ing-row${rule || mech ? "" : " quiet"}"${hidden ? " hidden" : ""}>
-      <div><div class="nm">${esc(t)}${mech ? ACT : ""}</div><div class="lv ${c}"><i></i>${rule ? `${esc(rule.label)} · ${LV[rule.tier]}` : mech ? `${esc(mech.how)}` : "not flagged"}</div></div>
+      <div><div class="nm">${esc(t)}${mech ? ACT : ""}</div><div class="lv ${c}"><i></i>${rule ? `${rule.tier === "note" ? "caution" : "flagged"} · ${esc(rule.label)}` : "cleared"}</div></div>
       ${rule ? `<button class="ibtn" type="button" data-info="rule:${rule.id}" aria-label="About ${esc(rule.label)}">${icon("info")}</button>`
         : mech ? `<button class="ibtn" type="button" data-info="mech:${mech.id}" aria-label="How ${esc(mech.label)} works">${icon("info")}</button>` : "<span></span>"}</div>`;
   const shown = Math.max(8, rows.filter((x) => x.rule || x.mech).length);
@@ -274,16 +284,20 @@ function renderResult(r) {
       ${p.code ? `<p class="attrib">Barcode matched to the brand's own store listing.</p>` : ""}`);
   }
   const brand = (p.brands || []).join(", ");
+  const checked = p.vetted ? `<p class="checked">${icon("check")} Checked by Tox Zero${p.vetted.vetted ? ` · ${esc(p.vetted.vetted)}` : ""}${p.vetted.note ? `<span>${esc(p.vetted.note)}</span>` : ""}</p>` : "";
   if (r.verdict === "reject") {
-    return openSheet(`${peek(r, p.name, brand, p.image)}
+    return openSheet(`${peek(r, p.name, brand, p.image)}${checked}
       ${r.swaps.length ? `<h3 class="section">the swaptions.</h3>${versus(p, r.swaps[0])}${swapCards(r.swaps)}`
         : `<p class="note">No guide pick for this shelf yet. It's on the vet list.</p>`}
       ${bars(r)}${ingredients(p, r.shelf)}${attrib(p)}`);
   }
   const nothing = !p.source;
   const shelfSwaps = r.shelf ? swapsFor(r.shelf, data.picks, 3) : [];
-  openSheet(`${peek(r, p.name || "Unknown product", brand || (nothing ? p.code : ""), p.image)}
-    <p class="note">${nothing ? "Not in Open Beauty Facts yet." : "No flags isn't a yes."} Added to the vet list.</p>
+  openSheet(`${peek(r, p.name || "Unknown product", brand || (nothing ? p.code : ""), p.image)}${checked}
+    <p class="note">${nothing ? "Not in Open Beauty Facts yet." : "No flags isn't a yes."}</p>
+    ${submitted(p.code) ? `<div class="helpvet glass"><b>${icon("check")} In the vet queue.</b><span>Once it's scored, everyone who scans it sees the result.</span></div>`
+      : `<div class="helpvet glass"><b>help us vet it.</b><span>Snap the front and the ingredient list. Tox Zero scores it, and the next person who scans it sees the result.</span>
+      <button class="pill navy" type="button" data-intake="${esc(p.code || "")}">${icon("camera")}Add this product</button></div>`}
     ${r.lookalikes?.length ? `<ul class="list">${r.lookalikes.map((k) => `<li><button class="item glass" type="button" onclick="location.hash='#/g/${esc(k.id)}'">
       ${pic(k.image, k.name, "thumb")}<span class="txt"><span class="n">The guide's ${esc(k.name)}?</span><span class="m">barcode not confirmed · tap</span></span></button></li>`).join("")}</ul>` : ""}
     ${bars(r)}
@@ -299,7 +313,7 @@ const TIERLINE = {
   dotted: "DOTTED LINE · the guide's picks skip it",
   note: "HEADS-UP · allowed in a couple of guide picks",
 };
-const STATUS_COLOR = { fail: "red", warn: "yellow", pass: "green", clear: "grey", unknown: "grey" };
+const STATUS_COLOR = { fail: "red", warn: "yellow", pass: "green", clear: "green", unknown: "grey" };
 function showInfo(kind, key, from) {
   let html = "";
   if (kind === "rule") {
@@ -327,7 +341,7 @@ function showInfo(kind, key, from) {
     const pl = PILLARS[3], x = current?.card?.efficacy, actives = current?.efficacy?.actives || [];
     html = `<h4>Efficacy</h4>
       ${x ? `<div class="tierline"><span class="lv ${STATUS_COLOR[x.status]}"><i></i></span>${esc(x.word.toUpperCase())}</div>
-      <div class="blk"><span>THIS PRODUCT</span><p>${esc(current.verdict === "pick" ? x.detail : x.status === "clear" ? "Actives found. The dose isn't on the label; Andra's vetting checks it." : x.detail)}</p></div>` : ""}
+      <div class="blk"><span>THIS PRODUCT</span><p>${esc(current.verdict === "pick" ? x.detail : x.status === "clear" ? "Actives found. Labels don't print the dose; the Tox Zero guide checks it." : x.detail)}</p></div>` : ""}
       ${actives.length ? `<div class="blk"><span>THE ACTIVES</span></div><div class="ilist">${actives.map((a) =>
         `<button class="irow" type="button" data-info="mech:${a.mech.id}" data-from="efficacy"><span class="act">${icon("flask")}</span><span>${esc(a.token)}<small>${esc(a.mech.how)}</small></span><em>›</em></button>`).join("")}</div>` : ""}
       <div class="blk"><span>WHAT TOX ZERO CHECKS</span><p>${esc(pl.about)}</p></div>`;
@@ -341,7 +355,7 @@ function showInfo(kind, key, from) {
           ? `<button class="irow" type="button" data-info="rule:${rule.id}" data-from="ingredients"><i class="${c}"></i><span>${esc(t)}</span><em>${esc(rule.label)} ›</em></button>`
           : mech ? `<button class="irow" type="button" data-info="mech:${mech.id}" data-from="ingredients"><i class="${c}"></i><span>${esc(t)}</span><em>${ACT} ›</em></button>`
           : `<div class="irow"><i class="${c}"></i><span>${esc(t)}</span></div>`).join("")}</div>`
-        : pickCell ? `<div class="blk"><span>FROM THE GUIDE</span><p>${esc(pickCell)}. Andra vetted every one.</p></div>`
+        : pickCell ? `<div class="blk"><span>FROM THE GUIDE</span><p>${esc(pickCell)}. Every one vetted for the guide.</p></div>`
         : `<div class="blk"><p>No label on file yet, so nothing could be checked.</p></div>`}
       <div class="blk"><span>WHAT TOX ZERO CHECKS</span><p>${esc(pl.about)}</p></div>`;
   } else {
@@ -358,8 +372,61 @@ function showInfo(kind, key, from) {
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-info]");
   if (b) { e.preventDefault(); const [kind, key] = b.dataset.info.split(":"); showInfo(kind, key, b.dataset.from); return; }
+  const add = e.target.closest("[data-intake]");
+  if (add) { e.preventDefault(); showIntake(add.dataset.intake); return; }
   if (e.target.id === "info" || e.target.closest("#infoClose")) $("#info").hidden = true;
 });
+
+// ── "help us vet it": photos + packaging, into the vet queue ──
+const submitted = (code) => !!code && intake.all().some((x) => x.code === code);
+async function shrink(file, max = 900) {
+  const img = await createImageBitmap(file);
+  const k = Math.min(1, max / Math.max(img.width, img.height));
+  const c = Object.assign(document.createElement("canvas"), { width: Math.round(img.width * k), height: Math.round(img.height * k) });
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", .72);
+}
+function showIntake(code) {
+  const p = current?.product || {};
+  const chips = (name, opts) => opts.map((o) => `<label class="chip glass"><input type="radio" name="${name}" value="${o.toLowerCase()}"><span>${o}</span></label>`).join("");
+  $("#infoBody").innerHTML = `<form class="intake" id="intakeForm">
+    <h4>help us vet it.</h4>
+    <p class="hint">Barcode ${esc(code || "not scanned")}</p>
+    <div class="shots">
+      <label class="shot glass"><input type="file" accept="image/*" capture="environment" data-shot="front" hidden><img alt=""><span>${icon("camera")}Front</span></label>
+      <label class="shot glass"><input type="file" accept="image/*" capture="environment" data-shot="label" hidden><img alt=""><span>${icon("camera")}Ingredient list</span></label>
+    </div>
+    <label class="fld">Product<input name="name" value="${esc(p.name || "")}" placeholder="name on the front" required></label>
+    <label class="fld">Brand<input name="brand" value="${esc((p.brands || [])[0] || "")}" placeholder="brand"></label>
+    <p class="q">What's it in?</p><div class="chips">${chips("material", ["Glass", "Metal", "Paper", "Plastic", "Mixed"])}</div>
+    <div id="touchQ" hidden><p class="q">Does plastic touch the product?</p><div class="chips">${chips("touch", ["Yes", "No", "Not sure"])}</div></div>
+    <label class="fld">Ingredients <em>optional, the photo works</em><textarea name="ingredients" rows="3" placeholder="paste or type them"></textarea></label>
+    <label class="fld">Email <em>optional, to hear the score</em><input name="email" type="email" placeholder="you@example.com" autocomplete="email"></label>
+    <button class="pill navy cta" type="submit">Send to the vet queue</button>
+  </form>`;
+  $("#info").hidden = false;
+  const shots = {};
+  const f = $("#intakeForm");
+  f.addEventListener("change", async (e) => {
+    const t = e.target;
+    if (t.name === "material") $("#touchQ").hidden = !["plastic", "mixed"].includes(t.value);
+    if (t.dataset.shot && t.files[0]) {
+      try { shots[t.dataset.shot] = await shrink(t.files[0]); t.parentNode.querySelector("img").src = shots[t.dataset.shot]; t.parentNode.classList.add("has"); } catch {}
+    }
+  });
+  f.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(f));
+    const entry = { code: code || "", name: d.name, brand: d.brand, material: d.material || "", plasticTouches: d.touch || "",
+      ingredients: d.ingredients || "", email: d.email || "", front: shots.front || "", label: shots.label || "", at: new Date().toISOString() };
+    intake.save([entry, ...intake.all().filter((x) => !x.code || x.code !== entry.code)]);
+    if (data.config.intakeUrl) { try { await fetch(data.config.intakeUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(entry) }); } catch {} }
+    $("#infoBody").innerHTML = `<h4>Thank you.</h4><div class="blk"><p>${esc(entry.name || "It")} is in the vet queue. Once Tox Zero scores it, everyone who scans it sees the result.</p></div>
+      <button class="pill navy cta" type="button" onclick="document.querySelector('#info').hidden=true">Done</button>`;
+    paintVetCount();
+    if (current) renderResult(current);
+  });
+}
 
 // ── screens that still use the page panel (search, standard, vet list) ──
 const panel = () => $("#panel");
@@ -433,7 +500,7 @@ function routeStandard() {
   const rules = INGREDIENT_RULES.filter((r) => r.tier !== "note").length;
   const legend = (cls, ico, title, text) => `<div><span class="dot ${cls}">${icon(ico)}</span><span><b>${title}</b><span>${text}</span></span></div>`;
   show(`${back}<div class="std"><h1 class="title">the standard.</h1>
-    <p class="lead">Only Andra's guide says yes.</p>
+    <p class="lead">Only the Tox Zero guide says yes.</p>
     <div class="legend glass">
       ${legend("pass", "check", "Tox Zero pick", "In the guide. Passed all four pillars.")}
       ${legend("fail", "x", "Reject", "Fails a pillar. Here's the swaption.")}
@@ -450,8 +517,11 @@ function routeStandard() {
 }
 
 function routeVet() {
-  const list = vet.all();
+  const list = vet.all(), subs = intake.all();
   show(`${back}<h1 class="title">vet list.</h1><p class="sub">Not in the guide yet. The research queue.</p>
+    ${subs.length ? `<p class="label">SENT TO BE VETTED</p><ul class="list">${subs.map((x) => `<li><div class="item glass">${pic(x.front, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name || "Unnamed")}</span>
+      <span class="m">${esc([x.brand, x.material, x.code].filter(Boolean).join(" · "))}${x.label ? " · label photo" : ""}</span></span></div></li>`).join("")}</ul>` : ""}
+    <p class="label">SCANNED, NOT IN THE GUIDE</p>
     ${list.length ? `<ul class="list">${list.map((x) => `<li><div class="item glass">${pic(x.image, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name)}</span>
       <span class="m">${esc([x.brand, x.code, x.at].filter(Boolean).join(" · "))}</span></span></div></li>`).join("")}</ul>
       <div class="row"><button class="pill glass" type="button" id="copyVet">Copy list</button><button class="pill glass" type="button" id="clearVet">Clear</button></div>`

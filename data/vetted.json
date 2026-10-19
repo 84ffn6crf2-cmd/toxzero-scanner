@@ -1,0 +1,3 @@
+{
+ "_about": "Products the Tox Zero team has checked by hand, keyed by barcode. Fields: name, brand, ingredients (INCI as on the label), packaging (e.g. \"glass jar + metal lid\" or \"plastic tube\"), image (URL), verdict (\"reject\" or omit), note, vetted (date). The scanner merges this over Open Beauty Facts, so the next scan shows the full score. Approvals still only come from the guide (add the product to the guide + barcodes.json)."
+}

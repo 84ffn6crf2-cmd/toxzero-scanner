@@ -213,7 +213,7 @@ export function efficacyCheck(product, tokens, shelf) {
   }
   if (actives.length) {
     return { status: "clear", short: actives.slice(0, 2).map((a) => a.mech.label.toLowerCase()).join(" + "), actives,
-      detail: actives.map((a) => `${a.token}: ${a.mech.how}`).join(" ") + " The dose isn't on the label; Andra's vetting checks it." };
+      detail: actives.map((a) => `${a.token}: ${a.mech.how}`).join(" ") + " Labels don't print the dose; the Tox Zero guide checks it." };
   }
   return { status: "unknown", short: "no active claim", actives, detail: "No hero active on this label for the scanner to check." };
 }
@@ -227,7 +227,7 @@ export const PILLARS = [
   { key: "owner", label: "Transparency", icon: "owner",
     about: "Who gets the money. Brands owned by conglomerates that profit from the products the guide replaces fail, and so do the brands on the guide's Wall of Claim. Good owners pass." },
   { key: "efficacy", label: "Efficacy", icon: "flask",
-    about: "Clean isn't the finish line; function is. Efficacy is the science of the mechanism: does what's in it do what the label claims, at a dose that works? Below 1%, label order is arbitrary, and a hero active listed there is label decoration. The scanner names each active and how it works, and catches a claim the formula can't back. Andra's vetting checks the dose." },
+    about: "Clean isn't the finish line; function is. Efficacy is the science of the mechanism: does what's in it do what the label claims, at a dose that works? Below 1%, label order is arbitrary, and a hero active listed there is label decoration. The scanner names each active and how it works, and catches a claim the formula can't back. The guide checks the dose." },
 ];
 
 // Split an INCI list on top-level commas/semicolons, keeping "1,2-hexanediol" and (parenthesised, parts) whole.
@@ -412,17 +412,17 @@ function ingredientsLine(r, tokens) {
     const n = (cell.match(/^\d+/) || [])[0];
     const made = n ? `${n} ingredients${cell.replace(/^\d+/, "").trim() ? ` · ${cell.replace(/^\d+\s*/, "")}` : ""}` : cell;
     return { title: n || !cell ? "INGREDIENTS" : "MADE OF", status: "pass", word: "Vetted",
-      short: n ? `${n} ingredients` : "vetted", detail: made ? `${made}. In Andra's guide.` : "In Andra's guide." };
+      short: n ? `${n} ingredients` : "vetted", detail: made ? `${made}. In the Tox Zero guide.` : "In the Tox Zero guide." };
   }
   const bad = r.reasons.filter((x) => x.type === "ingredient");
   if (bad.length) {
     const names = bad.map((x) => x.match);
-    return { title: "INGREDIENTS", status: "fail", word: "Fails", short: `${bad.length} flag${bad.length > 1 ? "s" : ""}`,
+    return { title: "INGREDIENTS", status: "fail", word: "Flagged", short: `${bad.length} flagged`,
       detail: names.slice(0, 2).join(", ") + (names.length > 2 ? ` + ${names.length - 2} more` : "") };
   }
   if (!tokens.length) return { title: "INGREDIENTS", status: "unknown", word: "Not verified", short: "no label", detail: "No label on file." };
   const heads = r.notes.filter((x) => x.type === "ingredient").map((x) => x.label);
-  return { title: "INGREDIENTS", status: "clear", word: "No flags", short: "no flags",
+  return { title: "INGREDIENTS", status: "clear", word: "Cleared", short: "all cleared",
     detail: `${tokens.length} checked. Not a pass.${heads.length ? ` Heads-up: ${heads.join(", ")}.` : ""}` };
 }
 
@@ -458,7 +458,7 @@ function efficacyLine(r) {
   if (r.verdict === "pick") {
     const hi = String(r.pick.ingredients || "").replace(/^\d+\s*/, "").trim();
     return { title: "EFFICACY", status: "pass", word: "Mechanism checked", short: "mechanism checked",
-      detail: `Andra checked the mechanism and the dose${hi ? `: ${hi}` : ""}.` };
+      detail: `Vetted for mechanism and dose${hi ? `: ${hi}` : ""}.` };
   }
   const e = r.efficacy || { status: "unknown", short: "no label", detail: "No label on file." };
   const word = { fail: "Fails", warn: "Under 1%", clear: "Actives found", unknown: "Not checked" }[e.status];
@@ -466,7 +466,7 @@ function efficacyLine(r) {
 }
 
 function ownerLine(r) {
-  if (r.verdict === "pick") return { title: "TRANSPARENCY", status: "pass", word: "Vetted", short: "vetted", detail: "Checked when Andra vetted it." };
+  if (r.verdict === "pick") return { title: "TRANSPARENCY", status: "pass", word: "Vetted", short: "vetted", detail: "Checked when it was vetted for the guide." };
   const o = r.reasons.find((x) => x.type === "owner");
   if (o) {
     const wall = /Wall of Claim/.test(o.label);
@@ -550,6 +550,12 @@ export function fromOBF(json) {
 // data = { picks, picksById, barcodes, ownerIndex }
 export function evaluate(product, data) {
   const code = normCode(product.code);
+  const v = code && data.vetted && data.vetted[code];
+  if (v) {
+    product = { ...product, code, name: v.name || product.name, brands: v.brand ? [v.brand] : product.brands || [],
+      ingredients: v.ingredients || product.ingredients || "", packaging: [v.packaging, product.packaging].filter(Boolean).join(" "),
+      image: product.image || v.image || null, source: product.source || "toxzero", vetted: v };
+  }
   const hit = code && data.barcodes[code];
   if (hit && data.picksById[hit.pick]) {
     const pick = data.picksById[hit.pick];
@@ -580,6 +586,7 @@ export function evaluate(product, data) {
   reasons.push(...pk.reasons);
   const efficacy = efficacyCheck(product, tokens, shelf);
   if (efficacy.reason) reasons.push(efficacy.reason);
+  if (v && v.verdict === "reject") reasons.unshift({ type: "vetted", label: "Rejected by Tox Zero", tier: "hard", detail: v.note || "Vetted by the Tox Zero team." });
 
   const lookalikes = lookalikePicks(product, data.picks);
   if (reasons.length) {
@@ -600,12 +607,13 @@ function pickNotes(pick) {
   return n;
 }
 
-export function buildData({ picks, barcodes, owners, wall, images = {} }) {
+export function buildData({ picks, barcodes, owners, wall, images = {}, vetted = {} }) {
   const list = (picks.picks || picks).map((p) => ({ ...p, image: images[p.id] || null }));
   return {
     picks: list,
     picksById: Object.fromEntries(list.map((p) => [p.id, p])),
     barcodes,
+    vetted: Object.fromEntries(Object.entries(vetted).filter(([k]) => !k.startsWith("_")).map(([k, v]) => [normCode(k), v])),
     ownerIndex: buildOwnerIndex(owners, wall),
   };
 }

@@ -136,13 +136,13 @@ h3.section { font-family: var(--display); font-weight: 700; font-size: 28px; col
 .swap .pic .ph { font-family: var(--display); font-weight: 700; font-size: 54px; color: var(--ink-faint); }
 .swap .ok { position: absolute; left: 8px; top: 8px; display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 999px; background: var(--mint); font-size: 11px; font-weight: 700; color: var(--ink); }
 .swap .ok svg.i { width: 12px; height: 12px; stroke-width: 3.5; }
-.swap .heart { position: absolute; right: 8px; top: 8px; padding: 4px 9px; border-radius: 999px; background: rgba(255, 255, 255, .85); font-size: 11px; font-weight: 700; color: var(--ink); }
+.swap .heart { position: absolute; right: 8px; bottom: 8px; padding: 4px 9px; border-radius: 999px; background: rgba(255, 255, 255, .85); font-size: 11px; font-weight: 700; color: var(--ink); }
 .swap .heart b { color: var(--pink); }
 .swap .n { font-family: var(--serif); font-size: 18px; line-height: 1.2; }
 .swap .mini { display: flex; gap: 6px; }
 .swap .mini span { display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px; border-radius: 999px; background: rgba(255, 255, 255, .55); font-size: 11px; font-weight: 700; }
 .swap .mini svg.i { width: 12px; height: 12px; }
-.swap .mini .w svg.i:last-child { color: #E0566C; }
+.swap .mini .w svg.i:last-child { color: #C99A12; }
 .swap .sfoot { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; }
 .swap .go { display: inline-flex; align-items: center; gap: 4px; }
 
@@ -203,7 +203,7 @@ details.inci mark { background: rgba(255, 142, 158, .45); color: var(--ink); bor
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
 /* ── pull-up result sheet (Yuka pattern, glass) ───────────────────────────── */
-:root { --c-red: #FF8E9E; --c-yellow: #F2CF5E; --c-green: #7FCDA9; --lvl-pass: #8CD3B4; --lvl-warn: #FFB3BF; --lvl-clear: rgba(30, 58, 107, .26); --lvl-fail: #FF8E9E; }
+:root { --c-red: #FF8E9E; --c-yellow: #F2CF5E; --c-green: #7FCDA9; --lvl-pass: var(--c-green); --lvl-warn: var(--c-yellow); --lvl-clear: var(--c-green); --lvl-fail: var(--c-red); }
 .sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; max-width: 560px; margin: 0 auto;
   height: calc(100dvh - 48px - env(safe-area-inset-top)); display: flex; flex-direction: column;
@@ -222,9 +222,9 @@ details.inci mark { background: rgba(255, 142, 158, .45); color: var(--ink); bor
 .peek .img .ph { font-family: var(--display); font-weight: 700; font-size: 32px; color: var(--ink-faint); }
 .peek .brand { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
 .peek .name { font-family: var(--serif); font-size: 19px; line-height: 1.15; color: var(--ink); margin: 1px 0 7px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.peek .stamp { margin: 0; padding: 5px 11px; font-size: 13px; }
+.peek .stamp { margin: 0; padding: 5px 10px; font-size: 12px; white-space: nowrap; }
 .ringbox { text-align: center; }
-.ring { width: 128px; height: 128px; display: block; overflow: visible; }
+.ring { width: 122px; height: 122px; display: block; overflow: visible; }
 .ring .rlabel { font-family: var(--ui); font-weight: 700; font-size: 7.4px; letter-spacing: .5px; fill: var(--ink-soft); }
 .ring .seg { fill: none; stroke-width: 11; stroke-linecap: butt; }
 .ring .seg.pass { stroke: var(--lvl-pass); } .ring .seg.warn { stroke: var(--lvl-warn); }
@@ -241,8 +241,8 @@ details.inci mark { background: rgba(255, 142, 158, .45); color: var(--ink); bor
 .bar-row .lbl { font-weight: 700; font-size: 14px; color: var(--ink); }
 .track { height: 8px; border-radius: 6px; background: rgba(30, 58, 107, .08); margin-top: 6px; overflow: hidden; }
 .track b { display: block; height: 100%; border-radius: 6px; }
-.track.pass b { width: 100%; background: var(--lvl-pass); } .track.warn b { width: 68%; background: var(--lvl-warn); }
-.track.clear b { width: 45%; background: var(--lvl-clear); } .track.fail b { width: 14%; background: var(--lvl-fail); }
+.track.pass b { width: 100%; background: var(--lvl-pass); } .track.warn b { width: 100%; background: var(--lvl-warn); }
+.track.clear b { width: 100%; background: var(--lvl-clear); } .track.fail b { width: 100%; background: var(--lvl-fail); }
 .track.unknown { background: none; border: 1.5px dashed rgba(30, 58, 107, .25); }
 .bar-row .st { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-align: right; max-width: 92px; line-height: 1.2; }
 .ibtn { width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .6); color: var(--ink); display: grid; place-items: center; cursor: pointer; padding: 0; }
@@ -294,3 +294,28 @@ button.irow { cursor: pointer; font-weight: 700; }
 .tierline .act { margin: 0 4px 0 0; }
 .irow small { display: block; font-size: 12px; font-weight: 400; color: var(--ink-soft); margin-top: 2px; }
 .irow > .act { flex: none; margin: 0; padding: 4px; }
+
+/* "help us vet it" */
+.helpvet { border-radius: 20px; padding: 14px 16px; margin: 0 0 18px; display: grid; gap: 6px; }
+.helpvet b { font-family: var(--display); font-size: 22px; color: var(--ink); display: flex; align-items: center; gap: 6px; }
+.helpvet b svg.i { width: 18px; height: 18px; }
+.helpvet span { font-family: var(--serif); font-size: 16px; color: var(--ink-body); }
+.helpvet .pill { margin-top: 6px; }
+.checked { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 12px; font-weight: 700; color: var(--ink); margin: -6px 0 12px; }
+.checked svg.i { width: 14px; height: 14px; color: #3E9C74; }
+.checked span { flex-basis: 100%; font-weight: 400; color: var(--ink-soft); }
+.intake .hint { font-size: 12px; color: var(--ink-soft); margin: 0 0 12px; }
+.intake .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.shot { position: relative; aspect-ratio: 1 / 1; border-radius: 16px; display: grid; place-items: center; overflow: hidden; cursor: pointer; }
+.shot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+.shot.has img { display: block; }
+.shot span { position: relative; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ink); background: rgba(255, 255, 255, .7); padding: 6px 10px; border-radius: 999px; }
+.shot span svg.i { width: 16px; height: 16px; }
+.fld { display: grid; gap: 4px; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--ink-soft); margin-bottom: 10px; }
+.fld em { font-style: normal; font-weight: 400; }
+.fld input, .fld textarea { font-size: 16px; color: var(--ink); padding: 10px 12px; border-radius: 12px; border: 1px solid var(--rim); background: rgba(255, 255, 255, .6); outline: none; font-family: var(--ui); }
+.intake .q { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--ink-soft); margin: 2px 0 6px; }
+.intake .chips { margin-bottom: 12px; }
+.intake .chip { position: relative; }
+.intake .chip input { position: absolute; opacity: 0; pointer-events: none; }
+.intake .chip:has(input:checked) { background: var(--ink); color: #fff; border-color: transparent; }

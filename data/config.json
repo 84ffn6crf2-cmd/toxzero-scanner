@@ -1,0 +1,4 @@
+{
+ "_about": "intakeUrl: where \"help us vet it\" submissions are POSTed (JSON). Empty = they stay on the device until the hosted vet queue is set up.",
+ "intakeUrl": ""
+}
