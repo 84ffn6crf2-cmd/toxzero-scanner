@@ -12,7 +12,25 @@ const icon = (name) => `<svg class="i" aria-hidden="true"><use href="#i-${name}"
 const cache = new Map();   // code -> normalized product (from search results or earlier lookups)
 let data, current = null;  // current = the result on screen (for ⓘ cards)
 
-// ── vet list (per-device convenience) ──
+// ── history: every scan on this phone (the old "vet list" carries over) ──
+const HIST_KEY = "tz-history";
+const history_ = {
+  all() { try { return JSON.parse(localStorage.getItem(HIST_KEY)) || []; } catch { return []; } },
+  add(e) {
+    const key = e.code || e.id;
+    if (!key) return;
+    const list = history_.all().filter((x) => (x.code || x.id) !== key);
+    list.unshift({ ...e, at: new Date().toISOString() });
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0, 150))); } catch {}
+  },
+  clear() { try { localStorage.removeItem(HIST_KEY); localStorage.removeItem(VET_KEY); } catch {} },
+};
+function record(r) {
+  const p = r.product || {};
+  if (r.verdict === "pick") history_.add({ code: p.code || "", id: r.pick.id, name: r.pick.name, brand: r.pick.category, image: r.pick.image || p.image || "", verdict: "pick" });
+  else history_.add({ code: p.code || "", name: p.name || "Unknown product", brand: (p.brands || [])[0] || "", image: p.image || "", verdict: r.verdict });
+}
+// legacy per-device vet list (pre-history); read for migration only
 const VET_KEY = "tz-vet-list";
 const vet = {
   all() { try { return JSON.parse(localStorage.getItem(VET_KEY)) || []; } catch { return []; } },
@@ -38,7 +56,7 @@ const pending = {
   save(list) { try { localStorage.setItem(PENDING_KEY, JSON.stringify(list.slice(0, 50))); } catch {} },
   add(code) { const l = pending.all().filter((x) => x.code !== code); l.unshift({ code, at: new Date().toISOString().slice(0, 10) }); pending.save(l); },
 };
-const paintVetCount = () => { $("#vetCount").textContent = " " + (vet.all().length + intake.all().length + pending.all().filter((x) => !x.verdict).length); };
+const paintVetCount = () => { if (!$("#vetCount")) return; $("#vetCount").textContent = " " + (vet.all().length + intake.all().length + pending.all().filter((x) => !x.verdict).length); };
 
 // ── data ──
 async function loadData() {
@@ -344,6 +362,7 @@ const attrib = (p) => p.source === "obf"
 // ── result sheet ──
 function renderResult(r) {
   current = r;
+  record(r);
   const p = r.product;
   if (r.verdict === "pick") {
     const k = r.pick;
@@ -360,7 +379,7 @@ function renderResult(r) {
   if (r.verdict === "reject") {
     return openSheet(`${peek(r, p.name, brand, p.image)}${checked}
       ${r.swaps.length ? `<h3 class="section">the swaptions.</h3>${versus(p, r.swaps[0])}${swapCards(r.swaps)}`
-        : `<p class="note">No Tox Zero pick for this shelf yet. It's on the vet list.</p>`}
+        : `<p class="note">No Tox Zero pick for this shelf yet.</p>`}
       ${bars(r)}${ingredients(p, r.shelf)}${attrib(p)}`);
   }
   const nothing = !p.source;
@@ -382,6 +401,7 @@ function renderResult(r) {
 // food: this version is built for beauty and personal care
 function renderFood(p) {
   current = { verdict: "food", product: p };
+  record(current);
   openSheet(`<div class="peek"><div class="img">${pic(p.image, p.name || "?")}</div>
       <div><div class="brand">${esc((p.brands || []).join(", "))}</div><div class="name">${esc(p.name || "A food product")}</div>
       <span class="stamp unvetted">Food</span></div><span></span></div>
@@ -478,15 +498,15 @@ async function scorePending() {
     try {
       await lookupVetted(x.code);
       const p = (await lookupOBF(x.code)) || { code: x.code, name: "", brands: [] };
-      if (isFoodOnly(p)) { Object.assign(x, { verdict: "food", name: p.name || "Food product", image: p.image || "" }); done++; continue; }
+      if (isFoodOnly(p)) { Object.assign(x, { verdict: "food", name: p.name || "Food product", image: p.image || "" }); record({ verdict: "food", product: p }); done++; continue; }
       const r = evaluate(p, data);
       Object.assign(x, { verdict: r.verdict, name: r.pick?.name || p.name || "Unknown product", image: r.pick?.image || p.image || "" });
-      if (r.verdict === "unvetted") vet.add(p);
+      record(r);
       done++;
     } catch { break; }
   }
   pending.save(list);
-  if (done) toast(`${done} saved scan${done > 1 ? "s" : ""} scored`, "#/vet");
+  if (done) toast(`${done} saved scan${done > 1 ? "s" : ""} scored`, "#/history");
 }
 function toast(text, href) {
   const t = Object.assign(document.createElement("a"), { className: "toast glass", href: href || "#/", textContent: text });
@@ -553,7 +573,7 @@ function showIntake(code) {
   });
 }
 
-// ── screens that still use the page panel (search, standard, vet list) ──
+// ── screens that still use the page panel (search, standard, history) ──
 const panel = () => $("#panel");
 function show(html) {
   closeSheet(false);
@@ -564,8 +584,10 @@ function show(html) {
 }
 const back = `<button class="back" type="button" onclick="history.length > 1 ? history.back() : (location.hash = '#/')">${icon("back")}scan</button>`;
 
+let routeSeq = 0;
 async function routeBarcode(code) {
   code = normCode(code);
+  const seq = routeSeq;
   let r = evaluate({ code }, data);
   if (r.verdict === "pick") { renderResult(r); return enrichPick(code, r); }
   busy(true);
@@ -573,6 +595,7 @@ async function routeBarcode(code) {
   const team = lookupVetted(code);
   try { p = await lookupOBF(code); } catch { offline = true; }
   if (await team) offline = false;          // the team's record is enough to score it
+  if (seq !== routeSeq) return;             // they've moved on to another scan
   busy(false);
   if (offline) {
     current = null;
@@ -586,7 +609,6 @@ async function routeBarcode(code) {
   if (p.vetted === undefined && data.vetted[code]) p.vetted = data.vetted[code];
   if (isFoodOnly(p)) return renderFood(p);
   r = evaluate(p, data);
-  if (r.verdict === "unvetted" || (r.verdict === "reject" && !r.swaps.length)) vet.add(p);
   renderResult(r);
 }
 
@@ -647,30 +669,36 @@ function routeStandard() {
     </div></div>`);
 }
 
-function routeVet() {
-  const list = vet.all(), subs = intake.all(), pend = pending.all();
-  show(`${back}<h1 class="title">vet list.</h1><p class="sub">Not vetted yet. We're on it.</p>
+const VERDICT = { pick: ["pick", "check", "Tox Zero pick"], reject: ["reject", "x", "Reject"], unvetted: ["unvetted", "q", "Not vetted yet"], food: ["unvetted", "", "Food"] };
+const chip = (v) => { const [cls, ico, word] = VERDICT[v] || VERDICT.unvetted; return `<span class="vchip ${cls}">${ico ? icon(ico) : ""}${word}</span>`; };
+function routeHistory() {
+  const legacy = vet.all().map((x) => ({ ...x, verdict: "unvetted" }));
+  const seen = new Set();
+  const list = [...history_.all(), ...legacy].filter((x) => { const k = x.code || x.id; if (!k || seen.has(k)) return false; seen.add(k); return true; });
+  const subs = intake.all(), pend = pending.all().filter((x) => !x.verdict);
+  const when = (iso) => { const d = new Date(iso); return isNaN(d) ? String(iso || "") : d.toLocaleDateString(undefined, { month: "short", day: "numeric" }); };
+  show(`${back}<h1 class="title">history.</h1><p class="sub">Every scan on this phone.</p>
+    ${pend.length ? `<p class="label">SAVED WITHOUT SIGNAL</p><ul class="list">${pend.map((x) => `<li><div class="item glass">
+      ${pic("", "?", "thumb")}<span class="txt"><span class="n">${esc(x.code)}</span><span class="m">scores itself when you're back online</span></span></div></li>`).join("")}</ul>` : ""}
     ${subs.length ? `<p class="label">SENT TO BE VETTED</p><ul class="list">${subs.map((x) => `<li><div class="item glass">${pic(x.front, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name || "Unnamed")}</span>
-      <span class="m">${esc([x.brand, x.material, x.code].filter(Boolean).join(" · "))}${x.label ? " · label photo" : ""}${x.sent ? " · sent" : " · on this phone"}</span></span></div></li>`).join("")}</ul>` : ""}
-    ${pend.length ? `<p class="label">SAVED WITHOUT SIGNAL</p><ul class="list">${pend.map((x) => `<li><button class="item glass" type="button" onclick="location.hash='#/p/${esc(x.code)}'">
-      ${pic(x.image, x.name || "?", "thumb")}<span class="txt"><span class="n">${esc(x.name || x.code)}</span>
-      <span class="m">${x.verdict ? { pick: "Tox Zero pick", reject: "Reject", unvetted: "Not vetted yet", food: "Food" }[x.verdict] : "waiting for signal"} · ${esc(x.at)}</span></span></button></li>`).join("")}</ul>` : ""}
-    <p class="label">SCANNED, NOT VETTED YET</p>
-    ${list.length ? `<ul class="list">${list.map((x) => `<li><div class="item glass">${pic(x.image, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name)}</span>
-      <span class="m">${esc([x.brand, x.code, x.at].filter(Boolean).join(" · "))}</span></span></div></li>`).join("")}</ul>
-      <div class="row"><button class="pill glass" type="button" id="copyVet">Copy list</button><button class="pill glass" type="button" id="clearVet">Clear</button></div>`
-    : `<p class="empty" style="text-align:center">Empty. Scan something Tox Zero hasn't vetted yet.</p>`}`);
-  $("#copyVet")?.addEventListener("click", async (e) => {
-    const text = list.map((x) => [x.name, x.brand, x.code, x.at].filter(Boolean).join(" · ")).join("\n");
+      <span class="m">${esc([x.brand, when(x.at)].filter(Boolean).join(" · "))}${x.sent ? "" : " · sends when online"}</span></span></div></li>`).join("")}</ul>` : ""}
+    ${list.length ? `<p class="label">SCANNED</p><ul class="list">${list.map((x) => `<li><button class="item glass" type="button" onclick="location.hash='${x.code ? `#/p/${esc(x.code)}` : `#/g/${esc(x.id)}`}'">
+      ${pic(x.image, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name)}</span>
+      <span class="m">${esc([x.brand, when(x.at)].filter(Boolean).join(" · "))}</span></span>${chip(x.verdict)}</button></li>`).join("")}</ul>
+      <div class="row"><button class="pill glass" type="button" id="copyHist">Copy list</button><button class="pill glass" type="button" id="clearHist">Clear history</button></div>`
+    : `<p class="empty" style="text-align:center">Nothing yet. Scan something.</p>`}`);
+  $("#copyHist")?.addEventListener("click", async (e) => {
+    const text = list.map((x) => [x.name, VERDICT[x.verdict]?.[2], x.brand, x.code, when(x.at)].filter(Boolean).join(" · ")).join("\n");
     try { await navigator.clipboard.writeText(text); e.target.textContent = "Copied"; } catch { e.target.textContent = "Copy failed"; }
   });
-  $("#clearVet")?.addEventListener("click", () => { vet.clear(); routeVet(); });
+  $("#clearHist")?.addEventListener("click", () => { history_.clear(); routeHistory(); });
 }
 
 // ── router ──
 function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
 function showHome() { panel().hidden = true; $("#home").hidden = false; $("#camMsg").hidden = true; }
 function route() {
+  routeSeq++;
   busy(false);
   $("#info").hidden = true;
   const h = decodeURIComponent(location.hash.slice(1) || "/");
@@ -682,7 +710,7 @@ function route() {
   if (kind === "g" && arg) { showHome(); routePick(arg); return expand(); }
   if (kind === "q" && arg) return routeSearch(arg);
   if (kind === "standard") return routeStandard();
-  if (kind === "vet") return routeVet();
+  if (kind === "history" || kind === "vet") return routeHistory();
   closeSheet(false);
   showHome();
 }
