@@ -2,10 +2,10 @@
 // Look: light raw photo + frosted glass + navy (tox-zero-brand DEFAULT LOOK).
 // A scan opens a pull-up sheet over the scanner (Yuka pattern): the peek shows the photo, the stamp and the
 // four-pillar ring; pulled up, it shows the pillar bars, the swaptions and every ingredient, each with an ⓘ.
-import { buildData, evaluate, fromOBF, normCode, searchPicks, swapsFor, scanIngredients, findActives, INGREDIENT_RULES, EXPLAIN, PILLARS, MECHANISMS } from "./engine.js";
+import { buildData, evaluate, fromOBF, normCode, searchPicks, swapsFor, scanIngredients, findActives, isFoodOnly, INGREDIENT_RULES, EXPLAIN, PILLARS, MECHANISMS } from "./engine.js";
 
 const OBF = "https://world.openbeautyfacts.org";
-const FIELDS = "code,product_name,product_name_en,generic_name,brands,ingredients_text,ingredients_text_en,packaging,packaging_tags,packagings,categories_tags,image_front_small_url";
+const FIELDS = "code,product_name,product_name_en,generic_name,brands,ingredients_text,ingredients_text_en,packaging,packaging_tags,packagings,categories_tags,image_front_small_url,product_type";
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const icon = (name) => `<svg class="i" aria-hidden="true"><use href="#i-${name}"/></svg>`;
@@ -379,6 +379,17 @@ function renderResult(r) {
     ${attrib(p)}`);
 }
 
+// food: this version is built for beauty and personal care
+function renderFood(p) {
+  current = { verdict: "food", product: p };
+  openSheet(`<div class="peek"><div class="img">${pic(p.image, p.name || "?")}</div>
+      <div><div class="brand">${esc((p.brands || []).join(", "))}</div><div class="name">${esc(p.name || "A food product")}</div>
+      <span class="stamp unvetted">Food · coming soon</span></div><span></span></div>
+    <div class="helpvet glass"><b>beauty first.</b>
+      <span>This version of Tox Zero is built for beauty and personal care. Food gets its own standard, and it's coming in a future version.</span>
+      <button class="pill glass" type="button" data-intake="${esc(p.code || "")}">Not food? Want it vetted?</button></div>`);
+}
+
 // ── ⓘ cards: where you learn the why ──
 const TIERLINE = {
   hard: "HARD LINE · no pick in the guide contains it",
@@ -467,6 +478,7 @@ async function scorePending() {
     try {
       await lookupVetted(x.code);
       const p = (await lookupOBF(x.code)) || { code: x.code, name: "", brands: [] };
+      if (isFoodOnly(p)) { Object.assign(x, { verdict: "food", name: p.name || "Food product", image: p.image || "" }); done++; continue; }
       const r = evaluate(p, data);
       Object.assign(x, { verdict: r.verdict, name: r.pick?.name || p.name || "Unknown product", image: r.pick?.image || p.image || "" });
       if (r.verdict === "unvetted") vet.add(p);
@@ -571,6 +583,8 @@ async function routeBarcode(code) {
       <p class="note">It gets scored the moment you're back online. Guide picks still work offline.</p>`);
   }
   p = p || { code, name: "", brands: [] };
+  if (p.vetted === undefined && data.vetted[code]) p.vetted = data.vetted[code];
+  if (isFoodOnly(p)) return renderFood(p);
   r = evaluate(p, data);
   if (r.verdict === "unvetted" || (r.verdict === "reject" && !r.swaps.length)) vet.add(p);
   renderResult(r);
@@ -617,7 +631,7 @@ function routeStandard() {
   const rules = INGREDIENT_RULES.filter((r) => r.tier !== "note").length;
   const legend = (cls, ico, title, text) => `<div><span class="dot ${cls}">${icon(ico)}</span><span><b>${title}</b><span>${text}</span></span></div>`;
   show(`${back}<div class="std"><h1 class="title">the standard.</h1>
-    <p class="lead">Only the Tox Zero guide says yes.</p>
+    <p class="lead">Only the Tox Zero guide says yes.<br><span class="scope">Built for beauty and personal care. Food gets its own standard in a future version.</span></p>
     <div class="legend glass">
       ${legend("pass", "check", "Tox Zero pick", "In the guide. Passed all four pillars.")}
       ${legend("fail", "x", "Reject", "Fails a pillar. Here's the swaption.")}
@@ -640,7 +654,7 @@ function routeVet() {
       <span class="m">${esc([x.brand, x.material, x.code].filter(Boolean).join(" · "))}${x.label ? " · label photo" : ""}${x.sent ? " · sent" : " · on this phone"}</span></span></div></li>`).join("")}</ul>` : ""}
     ${pend.length ? `<p class="label">SAVED WITHOUT SIGNAL</p><ul class="list">${pend.map((x) => `<li><button class="item glass" type="button" onclick="location.hash='#/p/${esc(x.code)}'">
       ${pic(x.image, x.name || "?", "thumb")}<span class="txt"><span class="n">${esc(x.name || x.code)}</span>
-      <span class="m">${x.verdict ? { pick: "Tox Zero pick", reject: "Reject", unvetted: "Not vetted yet" }[x.verdict] : "waiting for signal"} · ${esc(x.at)}</span></span></button></li>`).join("")}</ul>` : ""}
+      <span class="m">${x.verdict ? { pick: "Tox Zero pick", reject: "Reject", unvetted: "Not vetted yet", food: "Food · coming soon" }[x.verdict] : "waiting for signal"} · ${esc(x.at)}</span></span></button></li>`).join("")}</ul>` : ""}
     <p class="label">SCANNED, NOT IN THE GUIDE</p>
     ${list.length ? `<ul class="list">${list.map((x) => `<li><div class="item glass">${pic(x.image, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name)}</span>
       <span class="m">${esc([x.brand, x.code, x.at].filter(Boolean).join(" · "))}</span></span></div></li>`).join("")}</ul>

@@ -322,3 +322,6 @@ button.irow { cursor: pointer; font-weight: 700; }
 .intake .tick input { width: 20px; height: 20px; margin: 0; accent-color: var(--ink); }
 
 .toast { position: fixed; left: 50%; top: calc(12px + env(safe-area-inset-top)); transform: translateX(-50%); z-index: 40; padding: 10px 16px; border-radius: 999px; font-size: 14px; font-weight: 700; color: var(--ink); text-decoration: none; background: rgba(255, 255, 255, .8); animation: rise .25s ease both; white-space: nowrap; }
+
+.scope { display: inline-block; margin-top: 4px; font-size: 12px; color: var(--ink-faint); }
+.helpvet .pill.glass { background: rgba(255, 255, 255, .5); }

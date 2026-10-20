@@ -542,8 +542,18 @@ export function fromOBF(json) {
     packagings: (p.packagings || []).map((x) => ({ material: x.material, shape: x.shape, recycling: x.recycling })),
     categories: (p.categories_tags || []).join(" "),
     image: p.image_front_small_url || null,
+    productType: p.product_type || "",
     source: "obf",
   };
+}
+
+// ── food: out of scope for this version ──
+// Open Food Facts records come back too (product_type "food"). Some beauty products are misfiled there,
+// so it only counts as food when nothing about it reads as beauty: no beauty shelf, no INCI-style label.
+const INCI_SIGNAL = /\b(aqua|cera alba|parfum|butyrospermum|olea europaea|ricinus communis|simmondsia|cetearyl|glyceryl stearate|caprylic\/capric|sodium lauryl|tocopheryl|phenoxyethanol|ci \d{5})\b|[a-z]+ [a-z]+ \([a-z ]+\) (seed|fruit|leaf|flower|kernel|root|peel|bark)/i;
+export function isFoodOnly(product) {
+  if (!product || product.productType !== "food" || product.vetted) return false;
+  return !detectShelf(product) && !INCI_SIGNAL.test(product.ingredients || "");
 }
 
 // ── the verdict ──────────────────────────────────────────────────────────────
