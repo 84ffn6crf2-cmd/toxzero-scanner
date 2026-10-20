@@ -386,7 +386,7 @@ function renderFood(p) {
       <div><div class="brand">${esc((p.brands || []).join(", "))}</div><div class="name">${esc(p.name || "A food product")}</div>
       <span class="stamp unvetted">Food</span></div><span></span></div>
     <div class="foodline"><p class="big">the best food has no label.</p>
-      <p>Tox Zero reads beauty + personal care.</p>
+      <p>Tox Zero scores health and beauty care products and advocates for eating food from your local farm.</p>
       <button class="textlink" type="button" data-intake="${esc(p.code || "")}">Not food? Have it vetted</button></div>`);
 }
 
@@ -631,7 +631,7 @@ function routeStandard() {
   const rules = INGREDIENT_RULES.filter((r) => r.tier !== "note").length;
   const legend = (cls, ico, title, text) => `<div><span class="dot ${cls}">${icon(ico)}</span><span><b>${title}</b><span>${text}</span></span></div>`;
   show(`${back}<div class="std"><h1 class="title">the standard.</h1>
-    <p class="lead">Only the Tox Zero guide says yes.<br><span class="scope">Built for beauty + personal care. The best food has no label.</span></p>
+    <p class="lead">Only the Tox Zero guide says yes.<br><span class="scope">Tox Zero scores health and beauty care products and advocates for eating food from your local farm.</span></p>
     <div class="legend glass">
       ${legend("pass", "check", "Tox Zero pick", "In the guide. Passed all four pillars.")}
       ${legend("fail", "x", "Reject", "Fails a pillar. Here's the swaption.")}
