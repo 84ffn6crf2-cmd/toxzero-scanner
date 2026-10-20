@@ -2,7 +2,7 @@
 // Look: light raw photo + frosted glass + navy (tox-zero-brand DEFAULT LOOK).
 // A scan opens a pull-up sheet over the scanner (Yuka pattern): the peek shows the photo, the stamp and the
 // four-pillar ring; pulled up, it shows the pillar bars, the swaptions and every ingredient, each with an ⓘ.
-import { buildData, evaluate, fromOBF, normCode, searchPicks, swapsFor, scanIngredients, findActives, isFoodOnly, cleanInci, INGREDIENT_RULES, EXPLAIN, PILLARS, MECHANISMS } from "./engine.js";
+import { buildData, evaluate, fromOBF, normCode, searchPicks, swapsFor, scanIngredients, findActives, isFoodOnly, cleanInci, INGREDIENT_RULES, EXPLAIN, PILLARS, MECHANISMS } from "./engine.js?v=2c76927";
 
 const OBF = "https://world.openbeautyfacts.org";
 const FIELDS = "code,product_name,product_name_en,generic_name,brands,ingredients_text,ingredients_text_en,packaging,packaging_tags,packagings,categories_tags,image_front_small_url,product_type";
