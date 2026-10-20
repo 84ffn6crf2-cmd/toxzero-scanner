@@ -73,42 +73,99 @@ async function lookupOBF(code) {
   return null;
 }
 
-// ── camera (ZXing; works in iOS Safari and Android Chrome) ──
+// ── camera: our own stream and frame loop; ZXing only decodes ──
+// ZXing's built-in video loop flips every other frame to a negative (for white-on-black codes). With TRY_HARDER the flip
+// lands on every frame it reads, so a normal barcode never decoded live (photos were fine). Frames are grabbed here,
+// cropped to what the viewfinder shows, and sized fresh each time (iPhones turn the feed to portrait after it starts).
 const hints = new Map();
 hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E]);
 hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-const reader = new ZXing.BrowserMultiFormatReader(hints, 250);
-let scanning = false;
+const reader = new ZXing.BrowserMultiFormatReader(hints);   // photos only
+const zx = new ZXing.MultiFormatReader();
+const grab = document.createElement("canvas");
+const gctx = grab.getContext("2d", { willReadFrequently: true });
+let stream = null, scanning = false, torchOn = false, scanTimer = 0, idleTimer = 0;
+const camLive = () => !!stream && stream.getVideoTracks().some((t) => t.readyState === "live");
 
 async function startCamera() {
-  const finder = $("#finder"), msg = $("#camMsg");
+  const msg = $("#camMsg");
   msg.hidden = true;
-  closeSheet(false);
+  closeSheet();
   if (!navigator.mediaDevices?.getUserMedia || !window.isSecureContext) {
     msg.textContent = "Live camera needs the https link. Use Photo.";
     msg.hidden = false; return;
   }
+  scanning = true; clearTimeout(idleTimer);
+  $("#startBtn").hidden = true; $("#stopBtn").hidden = false; $("#finder").classList.add("live");
   try {
-    scanning = true;
-    $("#startBtn").hidden = true; $("#stopBtn").hidden = false; finder.classList.add("live");
-    msg.textContent = "Your phone's about to ask for the camera. Tap Allow."; msg.hidden = false;
-    await reader.decodeFromConstraints(
-      { video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } },
-      $("#video"),
-      (result) => { if (result && scanning) { navigator.vibrate?.(40); stopCamera(); go(`#/p/${normCode(result.getText())}`); } },
-    );
+    if (!camLive()) {
+      // the tip only shows if the phone is actually asking (an instant yes never flashes it)
+      const tip = setTimeout(() => { msg.textContent = "Your phone's about to ask for the camera. Tap Allow."; msg.hidden = false; }, 350);
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } }); }
+      finally { clearTimeout(tip); }
+      if (!scanning) return stopCamera();   // Stop tapped while the phone was asking
+      const v = $("#video"); v.srcObject = stream; await v.play();
+      paintTorch();
+    }
     msg.hidden = true;
+    scanFrame();
   } catch (e) {
     stopCamera();
     msg.textContent = e && e.name === "NotAllowedError" ? "Camera is off. Allow it in Settings, or use Photo." : "Camera didn't start. Try Photo.";
     msg.hidden = false;
   }
 }
+function scanFrame() {
+  clearTimeout(scanTimer);
+  if (!scanning) return;
+  const v = $("#video"), w = v.videoWidth, h = v.videoHeight, box = $("#finder").getBoundingClientRect();
+  if (w && h && box.width) {
+    const k = Math.max(box.width / w, box.height / h);   // object-fit: cover, so read only what's on screen
+    const sw = Math.min(w, box.width / k), sh = Math.min(h, box.height / k);
+    const s = Math.min(1, 1280 / Math.max(sw, sh));
+    const cw = Math.round(sw * s), ch = Math.round(sh * s);
+    if (grab.width !== cw || grab.height !== ch) { grab.width = cw; grab.height = ch; }
+    gctx.drawImage(v, (w - sw) / 2, (h - sh) / 2, sw, sh, 0, 0, cw, ch);
+    try {
+      const res = zx.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(grab))), hints);
+      if (res) return found(res.getText());
+    } catch {}   // most frames have no readable barcode; anything else, try the next frame
+  }
+  scanTimer = setTimeout(scanFrame, 80);
+}
+function found(text) {
+  navigator.vibrate?.(40);
+  pauseScan();
+  history.replaceState(null, "", `#/p/${normCode(text)}`);   // not a hash change: iOS can drop the camera permission on those
+  route();
+}
+// the result sheet slides over a live camera (Yuka pattern), so the next scan doesn't ask again; off after 2 idle minutes
+function pauseScan() {
+  scanning = false; clearTimeout(scanTimer);
+  if (!camLive()) return stopCamera();
+  $("#startBtn").hidden = false;
+  clearTimeout(idleTimer); idleTimer = setTimeout(stopCamera, 120000);
+}
 function stopCamera() {
-  scanning = false;
-  try { reader.reset(); } catch {}
+  scanning = false; clearTimeout(scanTimer); clearTimeout(idleTimer);
+  stream?.getTracks().forEach((t) => t.stop());
+  stream = null; torchOn = false;
+  $("#video").srcObject = null;
   $("#finder").classList.remove("live");
   $("#startBtn").hidden = false; $("#stopBtn").hidden = true;
+  $("#torchBtn").hidden = true; $("#torchBtn").classList.remove("on");
+}
+function paintTorch() {
+  const t = stream?.getVideoTracks()[0], caps = t?.getCapabilities?.();   // iPhones list torch here from iOS 17.5
+  $("#torchBtn").hidden = !(caps ? caps.torch : navigator.mediaDevices.getSupportedConstraints?.().torch);
+}
+async function toggleTorch() {
+  const t = stream?.getVideoTracks()[0];
+  if (!t) return;
+  torchOn = !torchOn;
+  try { await t.applyConstraints({ advanced: [{ torch: torchOn }] }); }
+  catch { torchOn = false; $("#torchBtn").hidden = true; }   // this phone's browser can't drive the flash
+  $("#torchBtn").classList.toggle("on", torchOn);
 }
 
 async function decodePhoto(file) {
@@ -173,7 +230,7 @@ sheet.addEventListener("pointerup", (e) => {
   const was = sheetState; drag = null;
   if (Math.abs(dy) <= 5) return setSheet(was === "full" ? "peek" : "full");          // tap toggles
   if (dy < -60 || v < -0.5) return setSheet("full");
-  if (dy > 60 || v > 0.5) return was === "full" ? setSheet("peek") : closeSheet();
+  if (dy > 60 || v > 0.5) return was === "full" ? setSheet("peek") : camLive() ? startCamera() : closeSheet();   // swipe away a result = scan the next one
   setSheet(was);
 });
 window.addEventListener("resize", () => { if (!sheet.hidden) setSheet(sheetState, false); });
@@ -478,7 +535,7 @@ function showIntake(code) {
     await sendIntake();
     $("#infoBody").innerHTML = `<h4>Sweet! We'll have an answer soon.</h4><div class="blk"><p>You just helped everyone in the community who scans ${esc(entry.name || "this")} next.${email ? " We'll email you the second it's scored." : ""}${navigator.onLine ? "" : " No signal right now, so it sends itself once you're back online."}</p></div>
       <button class="pill navy cta" type="button" id="scanAgain">${icon("scan")}Scan another</button>`;
-    $("#scanAgain").addEventListener("click", () => { $("#info").hidden = true; go("#/"); startCamera(); });
+    $("#scanAgain").addEventListener("click", () => { $("#info").hidden = true; startCamera(); });
     paintVetCount();
     if (current) renderResult(current);
   });
@@ -604,7 +661,7 @@ function route() {
   $("#info").hidden = true;
   const h = decodeURIComponent(location.hash.slice(1) || "/");
   const [, kind, arg, view, info] = h.split("/");
-  if (h !== "/") stopCamera();
+  if (kind === "p" || kind === "g") pauseScan(); else if (h !== "/") stopCamera();
   // deep links: #/p/<code>/full opens the details; #/p/<code>/full/rule:fragrance also opens that ⓘ card
   const expand = () => { if (view === "full") setSheet("full"); if (info && info.includes(":")) showInfo(...info.split(":")); };
   if (kind === "p" && arg) { showHome(); return routeBarcode(arg).then(expand); }
@@ -620,6 +677,7 @@ const busy = (on) => { $("#busy").hidden = !on; };
 // ── wiring ──
 $("#startBtn").addEventListener("click", startCamera);
 $("#stopBtn").addEventListener("click", stopCamera);
+$("#torchBtn").addEventListener("click", toggleTorch);
 $("#photoInput").addEventListener("change", (e) => { decodePhoto(e.target.files[0]); e.target.value = ""; });
 $("#typeBtn").addEventListener("click", () => { $("#codeForm").hidden = false; $("#codeInput").focus(); });
 $("#codeForm").addEventListener("submit", (e) => {
