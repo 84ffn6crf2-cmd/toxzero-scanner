@@ -2,7 +2,7 @@
 // Look: light raw photo + frosted glass + navy (tox-zero-brand DEFAULT LOOK).
 // A scan opens a pull-up sheet over the scanner (Yuka pattern): the peek shows the photo, the stamp and the
 // four-pillar ring; pulled up, it shows the pillar bars, the swaptions and every ingredient, each with an ⓘ.
-import { buildData, evaluate, fromOBF, normCode, searchPicks, swapsFor, scanIngredients, findActives, isFoodOnly, cleanInci, INGREDIENT_RULES, EXPLAIN, PILLARS, MECHANISMS } from "./engine.js?v=2c76927";
+import { buildData, evaluate, fromOBF, normCode, searchPicks, swapsFor, scanIngredients, findActives, isFoodOnly, cleanInci, INGREDIENT_RULES, EXPLAIN, PILLARS, MECHANISMS } from "./engine.js?v=1b1d2f6";
 
 const OBF = "https://world.openbeautyfacts.org";
 const FIELDS = "code,product_name,product_name_en,generic_name,brands,ingredients_text,ingredients_text_en,packaging,packaging_tags,packagings,categories_tags,image_front_small_url,product_type";
@@ -69,8 +69,10 @@ async function loadData() {
 async function fetchJSON(url, ms = 9000) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), ms);
-  try { return await (await fetch(url, { signal: ctl.signal })).json(); }
-  finally { clearTimeout(t); }
+  try {
+    const r = await fetch(url, { signal: ctl.signal });
+    try { return await r.json(); } catch { return {}; }   // an error page is still an answer, not "no signal"
+  } finally { clearTimeout(t); }
 }
 
 // the team's live record for a barcode (vet queue Worker); merged before scoring, so a published score shows on the next scan
@@ -84,10 +86,14 @@ async function lookupOBF(code) {
   if (cache.has(code)) return cache.get(code);
   const tries = [code];
   if (code.length === 13 && code.startsWith("0")) tries.push(code.slice(1));
+  let reached = false, err = null;
   for (const c of tries) {
-    const j = await fetchJSON(`${OBF}/api/v2/product/${c}.json?product_type=all&fields=${FIELDS}`);
+    let j;
+    try { j = await fetchJSON(`${OBF}/api/v2/product/${c}.json?product_type=all&fields=${FIELDS}`, 12000); reached = true; }
+    catch (e) { err = e; if (e.name === "AbortError") break; continue; }   // a timeout won't get better on the 12-digit retry
     if (j && j.status === 1 && j.product) { const p = fromOBF(j); p.code = code; cache.set(code, p); return p; }
   }
+  if (!reached) throw err || new Error("unreachable");
   return null;
 }
 
@@ -103,6 +109,7 @@ const zx = new ZXing.MultiFormatReader();
 const grab = document.createElement("canvas");
 const gctx = grab.getContext("2d", { willReadFrequently: true });
 let stream = null, scanning = false, torchOn = false, scanTimer = 0, idleTimer = 0;
+let lastCode = "", lastAt = 0, scanRoute = false;   // the same box sitting in frame never re-fires
 const camLive = () => !!stream && stream.getVideoTracks().some((t) => t.readyState === "live");
 
 async function startCamera() {
@@ -126,6 +133,7 @@ async function startCamera() {
       paintTorch();
     }
     msg.hidden = true;
+    clearTimeout(idleTimer); idleTimer = setTimeout(stopCamera, 120000);   // off after 2 minutes with no barcode
     scanFrame();
   } catch (e) {
     stopCamera();
@@ -136,6 +144,8 @@ async function startCamera() {
 function scanFrame() {
   clearTimeout(scanTimer);
   if (!scanning) return;
+  // reading a pulled-up result or filling in the form: hold, don't swap the screen out from under them
+  if (sheetState === "full" || !$("#info").hidden) { scanTimer = setTimeout(scanFrame, 300); return; }
   const v = $("#video"), w = v.videoWidth, h = v.videoHeight, box = $("#finder").getBoundingClientRect();
   if (w && h && box.width) {
     const k = Math.max(box.width / w, box.height / h);   // object-fit: cover, so read only what's on screen
@@ -152,10 +162,17 @@ function scanFrame() {
   scanTimer = setTimeout(scanFrame, 80);
 }
 function found(text) {
-  navigator.vibrate?.(40);
-  pauseScan();
-  history.replaceState(null, "", `#/p/${normCode(text)}`);   // not a hash change: iOS can drop the camera permission on those
-  route();
+  const code = normCode(text), now = Date.now();
+  const same = code === lastCode && now - lastAt < 4000;
+  lastCode = code; lastAt = now;
+  if (!same) {
+    navigator.vibrate?.(40);
+    scanRoute = true;
+    history.replaceState(null, "", `#/p/${code}`);   // not a hash change: iOS can drop the camera permission on those
+    route();
+  }
+  clearTimeout(idleTimer); idleTimer = setTimeout(stopCamera, 120000);
+  scanTimer = setTimeout(scanFrame, same ? 250 : 900);   // keep scanning; a short breath after a hit
 }
 // the result sheet slides over a live camera (Yuka pattern), so the next scan doesn't ask again; off after 2 idle minutes
 function pauseScan() {
@@ -249,7 +266,7 @@ sheet.addEventListener("pointerup", (e) => {
   const was = sheetState; drag = null;
   if (Math.abs(dy) <= 5) return setSheet(was === "full" ? "peek" : "full");          // tap toggles
   if (dy < -60 || v < -0.5) return setSheet("full");
-  if (dy > 60 || v > 0.5) return was === "full" ? setSheet("peek") : camLive() ? startCamera() : closeSheet();   // swipe away a result = scan the next one
+  if (dy > 60 || v > 0.5) return was === "full" ? setSheet("peek") : camLive() && !scanning ? startCamera() : closeSheet();   // swipe away a result = back to scanning
   setSheet(was);
 });
 window.addEventListener("resize", () => { if (!sheet.hidden) setSheet(sheetState, false); });
@@ -553,6 +570,8 @@ function showInfo(kind, key, from) {
 document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-info]");
   if (b) { e.preventDefault(); const [kind, key] = b.dataset.info.split(":"); showInfo(kind, key, b.dataset.from); return; }
+  const retry = e.target.closest("[data-retry]");
+  if (retry) { e.preventDefault(); cache.delete(retry.dataset.retry); route(); return; }
   const add = e.target.closest("[data-intake]");
   if (add) { e.preventDefault(); showIntake(add.dataset.intake); return; }
   if (e.target.id === "info" || e.target.closest("#infoClose")) $("#info").hidden = true;
@@ -675,6 +694,13 @@ async function routeBarcode(code) {
   if (await team) offline = false;          // the team's record is enough to score it
   if (seq !== routeSeq) return;             // they've moved on to another scan
   busy(false);
+  if (offline && navigator.onLine !== false) {
+    current = null;
+    return openSheet(`<div class="peek"><div class="img"><div class="ph">?</div></div>
+      <div><div class="brand">${esc(code)}</div><div class="name">Taking longer than usual</div><span class="stamp unvetted">${icon("q")}Slow</span></div><span></span></div>
+      <p class="note">The product database is slow to answer right now. Your connection is fine.</p>
+      <button class="pill navy cta" type="button" data-retry="${esc(code)}">Try again</button>`);
+  }
   if (offline) {
     current = null;
     pending.add(code);
@@ -781,7 +807,8 @@ function route() {
   $("#info").hidden = true;
   const h = decodeURIComponent(location.hash.slice(1) || "/");
   const [, kind, arg, view, info] = h.split("/");
-  if (kind === "p" || kind === "g") pauseScan(); else if (h !== "/") stopCamera();
+  if (kind === "p" || kind === "g") { if (!scanRoute) pauseScan(); } else if (h !== "/") stopCamera();
+  scanRoute = false;
   // deep links: #/p/<code>/full opens the details; #/p/<code>/full/rule:fragrance also opens that ⓘ card
   const expand = () => { if (view === "full") setSheet("full"); if (info && info.includes(":")) showInfo(...info.split(":")); };
   if (kind === "p" && arg) { showHome(); return routeBarcode(arg).then(expand); }
