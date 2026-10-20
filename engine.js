@@ -547,7 +547,7 @@ export function fromOBF(json) {
   };
 }
 
-// ── food: out of scope for this version ──
+// ── food: not what Tox Zero scans (the guide champions label-free local food) ──
 // Open Food Facts records come back too (product_type "food"). Some beauty products are misfiled there,
 // so it only counts as food when nothing about it reads as beauty: no beauty shelf, no INCI-style label.
 const INCI_SIGNAL = /\b(aqua|cera alba|parfum|butyrospermum|olea europaea|ricinus communis|simmondsia|cetearyl|glyceryl stearate|caprylic\/capric|sodium lauryl|tocopheryl|phenoxyethanol|ci \d{5})\b|[a-z]+ [a-z]+ \([a-z ]+\) (seed|fruit|leaf|flower|kernel|root|peel|bark)/i;

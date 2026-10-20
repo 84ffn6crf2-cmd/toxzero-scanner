@@ -384,9 +384,9 @@ function renderFood(p) {
   current = { verdict: "food", product: p };
   openSheet(`<div class="peek"><div class="img">${pic(p.image, p.name || "?")}</div>
       <div><div class="brand">${esc((p.brands || []).join(", "))}</div><div class="name">${esc(p.name || "A food product")}</div>
-      <span class="stamp unvetted">Food · coming soon</span></div><span></span></div>
-    <div class="helpvet glass"><b>beauty first.</b>
-      <span>This version of Tox Zero is built for beauty and personal care. Food gets its own standard, and it's coming in a future version.</span>
+      <span class="stamp unvetted">Food</span></div><span></span></div>
+    <div class="helpvet glass"><b>the best food has no label.</b>
+      <span>Tox Zero reads beauty and personal care. Food? We champion the kind with no ingredient list, from your local farm.</span>
       <button class="pill glass" type="button" data-intake="${esc(p.code || "")}">Not food? Want it vetted?</button></div>`);
 }
 
@@ -631,7 +631,7 @@ function routeStandard() {
   const rules = INGREDIENT_RULES.filter((r) => r.tier !== "note").length;
   const legend = (cls, ico, title, text) => `<div><span class="dot ${cls}">${icon(ico)}</span><span><b>${title}</b><span>${text}</span></span></div>`;
   show(`${back}<div class="std"><h1 class="title">the standard.</h1>
-    <p class="lead">Only the Tox Zero guide says yes.<br><span class="scope">Built for beauty and personal care. Food gets its own standard in a future version.</span></p>
+    <p class="lead">Only the Tox Zero guide says yes.<br><span class="scope">Built for beauty and personal care. The best food comes without a label, from your local farm.</span></p>
     <div class="legend glass">
       ${legend("pass", "check", "Tox Zero pick", "In the guide. Passed all four pillars.")}
       ${legend("fail", "x", "Reject", "Fails a pillar. Here's the swaption.")}
@@ -654,7 +654,7 @@ function routeVet() {
       <span class="m">${esc([x.brand, x.material, x.code].filter(Boolean).join(" · "))}${x.label ? " · label photo" : ""}${x.sent ? " · sent" : " · on this phone"}</span></span></div></li>`).join("")}</ul>` : ""}
     ${pend.length ? `<p class="label">SAVED WITHOUT SIGNAL</p><ul class="list">${pend.map((x) => `<li><button class="item glass" type="button" onclick="location.hash='#/p/${esc(x.code)}'">
       ${pic(x.image, x.name || "?", "thumb")}<span class="txt"><span class="n">${esc(x.name || x.code)}</span>
-      <span class="m">${x.verdict ? { pick: "Tox Zero pick", reject: "Reject", unvetted: "Not vetted yet", food: "Food · coming soon" }[x.verdict] : "waiting for signal"} · ${esc(x.at)}</span></span></button></li>`).join("")}</ul>` : ""}
+      <span class="m">${x.verdict ? { pick: "Tox Zero pick", reject: "Reject", unvetted: "Not vetted yet", food: "Food" }[x.verdict] : "waiting for signal"} · ${esc(x.at)}</span></span></button></li>`).join("")}</ul>` : ""}
     <p class="label">SCANNED, NOT IN THE GUIDE</p>
     ${list.length ? `<ul class="list">${list.map((x) => `<li><div class="item glass">${pic(x.image, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name)}</span>
       <span class="m">${esc([x.brand, x.code, x.at].filter(Boolean).join(" · "))}</span></span></div></li>`).join("")}</ul>
