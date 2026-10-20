@@ -230,6 +230,11 @@ export const PILLARS = [
     about: "Clean isn't the finish line; function is. Efficacy is the science of the mechanism: does what's in it do what the label claims, at a dose that works? Below 1%, label order is arbitrary, and a hero active listed there is label decoration. The scanner names each active and how it works, and catches a claim the formula can't back. Tox Zero checks the dose." },
 ];
 
+// Label name → the key the EU CosIng lookup uses ("Olea Europaea (Olive) Fruit Oil" → "OLEA EUROPAEA FRUIT OIL").
+// Must match vet-queue/src/index.js cleanInci.
+export const cleanInci = (t) => String(t || "").replace(/\([^)]*\)/g, " ").replace(/[*†‡°]/g, "").replace(/\b\d+(\.\d+)?\s*%/g, " ")
+  .replace(/[.;:]+$/, "").replace(/\s+/g, " ").trim().toUpperCase();
+
 // Split an INCI list on top-level commas/semicolons, keeping "1,2-hexanediol" and (parenthesised, parts) whole.
 export function splitIngredients(text) {
   const out = [];
@@ -372,22 +377,48 @@ const PLASTIC = /plastic|plastique|kunststoff|\bpp\b|\bpe\b|hdpe|ldpe|\bpet\b|po
 const FATTY = /oil|butter|\bwax\b|\bcera\b|beeswax|triglyceride|tallow|lanolin|squalane|petrolatum|ozokerite|paraffin|butyrospermum|theobroma|cocos nucifera|ricinus|simmondsia|olea europaea|helianthus|isopropyl myristate|stearate|cetearyl alcohol|cetyl alcohol|stearyl alcohol/i;
 const FATTY_FORMAT = /\b(balm|stick|salve|butter|oil|wax|pomade|ointment|baume|beurre|huile)\b/i;
 
+// One read of the packaging from BOTH Open Beauty Facts fields: the free-text tags and the structured parts
+// list (Tom's: paperboard box + plastic tube + plastic cap lives only in the parts list).
+const CONTAINER = /\b(tube|bottle|jar|pot|tub|stick|pouch|sachet|can|dispenser|roll ?on|bouteille|flacon|container)\b/i;
+const MINOR = /\b(lid|cap|closure|pump|dropper|wrapper|film|seal|spoon|spatula|applicator|label)\b/i;
+const tidy = (x) => String(x || "").replace(/en:|fr:/g, "").replace(/-/g, " ").trim();
+const shapeWord = (x) => ((String(x || "").match(SHAPE) || [])[1] || "").toLowerCase().replace("bouteille", "bottle").replace("flacon", "bottle");
+export function analyzePackaging(product) {
+  const parts = (product.packagings || []).map((x) => ({ material: tidy(x.material), shape: tidy(x.shape), recycling: x.recycling }));
+  const tags = tidy(product.packaging);
+  const hay = `${tags} ${parts.map((x) => `${x.material} ${x.shape}`).join(" ")}`;
+  const plasticParts = parts.filter((x) => PLASTIC.test(x.material));
+  // the plastic that HOLDS the product (tube, bottle, jar…), as opposed to only a cap or pump
+  let container = plasticParts.find((x) => CONTAINER.test(x.shape) || !MINOR.test(x.shape)) || null;
+  if (!container && !plasticParts.length && PLASTIC.test(tags) && !(MINOR.test(tags) && !CONTAINER.test(tags))) container = { material: "plastic", shape: tags };
+  const plastic = plasticParts.length > 0 || PLASTIC.test(tags);
+  const material = (MATERIALS.find(([, re]) => re.test(hay)) || [])[0];
+  return {
+    parts, hay, plastic, container, material,
+    aerosol: /aerosol/i.test(hay),
+    containerLabel: container ? `Plastic ${shapeWord(container.shape) || "container"}` : "",
+    minor: plastic && !container ? (plasticParts[0]?.shape || (tags.match(MINOR) || ["part"])[0]).replace(/lid or cap/, "cap") : "",
+    shape: shapeWord(hay),
+    eol: [...new Set(parts.map((x) => EOL[x.recycling]).filter(Boolean))].join(" / "),
+  };
+}
+
 export function packagingReasons(product, tokens, shelf, picks) {
-  const pkg = String(product.packaging || "").replace(/en:|fr:/g, " ");
+  const a = analyzePackaging(product);
   const bifl = (shelf && shelf.bifl) || BIFL_NAME.test(product.name || "");
   const out = [];
-  if (/aerosol/i.test(pkg)) out.push({ type: "packaging", label: "Aerosol format", tier: "dotted",
+  if (a.aerosol) out.push({ type: "packaging", label: "Aerosol format", tier: "dotted",
     detail: "Aerosols put VOCs right in your breathing zone. No aerosol is a Tox Zero pick." });
-  if (bifl || !PLASTIC.test(pkg)) return { reasons: out, plastic: PLASTIC.test(pkg), bifl };
+  if (bifl || !a.container) return { reasons: out, plastic: a.plastic, bifl, pack: a };
   const fatty = tokens.slice(0, 3).some((t) => FATTY.test(t)) || FATTY_FORMAT.test(product.name || "");
   if (fatty) {
     out.push({ type: "packaging", label: "Plastic holding an oily formula", tier: "hard",
       detail: "Packaging is part of the formula. Oils and waxes pull plastic additives (2,4-DTBP, benzophenone) out of the container and into the product." });
   } else if (shelf && shelfPicks(shelf, picks).some((p) => !p.plastic && !p.plastic_part)) {
-    out.push({ type: "packaging", label: "Plastic packaging", tier: "hard",
-      detail: `Tox Zero has plastic-free picks for ${shelf.label.toLowerCase()}.` });
+    out.push({ type: "packaging", label: `${a.containerLabel} touching the product`, tier: "hard",
+      detail: `Packaging is part of the formula. Tox Zero has plastic-free picks for ${shelf.label.toLowerCase()}.` });
   }
-  return { reasons: out, plastic: true, bifl };
+  return { reasons: out, plastic: true, bifl, pack: a };
 }
 
 // ── scorecard: every result rates BOTH what's in it and what it's in ──────────
@@ -436,22 +467,22 @@ function packagingLine(r, product, bifl) {
     if (k.plastic) return { title: "PACKAGING", status: "warn", word: "⚠ PLASTIC", short: "plastic part", detail: `${text}. The formula earned the spot; the packaging didn't.` };
     return { title: "PACKAGING", status: "pass", word: "Vetted", short: mat, detail: text || "Vetted with the product." };
   }
-  const parts = product.packagings || [];
-  const hay = `${product.packaging || ""} ${parts.map((x) => `${x.material || ""} ${x.shape || ""}`).join(" ")}`.replace(/en:|fr:|-/g, " ");
-  const material = (MATERIALS.find(([, re]) => re.test(hay)) || [])[0];
-  const shape = (hay.match(SHAPE) || [])[1];
-  const eol = [...new Set(parts.map((x) => EOL[x.recycling]).filter(Boolean))].join(" / ");
-  const what = [material, shape && shape.toLowerCase().replace("bouteille", "bottle").replace("flacon", "bottle")].filter(Boolean).join(" ");
+  const a = analyzePackaging(product);
+  const what = [a.material, a.shape].filter(Boolean).join(" ");
   const pkgReason = r.reasons.find((x) => x.type === "packaging");
   if (pkgReason) return { title: "PACKAGING", status: "fail", word: "Fails",
-    short: /oily/.test(pkgReason.label) ? "leaches" : /Aerosol/.test(pkgReason.label) ? "aerosol" : "plastic", detail: pkgReason.label };
-  if (!material) return { title: "PACKAGING", status: "unknown", word: "Not verified", short: "not verified",
-    detail: shape ? `On file: ${what}. Material not recorded.` : "Nothing on file." };
-  const end = eol ? `End of life: ${eol}.` : "End of life not verified.";
-  if (material === "Plastic") return bifl
-    ? { title: "PACKAGING", status: "clear", word: "BIFL", short: "buy it for life", detail: "Plastic on a buy-it-for-life tool is a one-time cost." }
-    : { title: "PACKAGING", status: "warn", word: "⚠ PLASTIC", short: "plastic", detail: `${what}. A consumable in plastic: not zero waste. ${end}` };
-  return { title: "PACKAGING", status: "clear", word: "No flags", short: material.toLowerCase(), detail: `${what}. ${end}` };
+    short: /oily/.test(pkgReason.label) ? "leaches" : /Aerosol/.test(pkgReason.label) ? "aerosol" : a.containerLabel.toLowerCase() || "plastic",
+    detail: `${pkgReason.label}. ${pkgReason.detail}` };
+  if (!a.material) return { title: "PACKAGING", status: "unknown", word: "Not verified", short: "not verified",
+    detail: a.shape ? `On file: ${a.shape}. Material not recorded.` : "Nothing on file." };
+  const end = a.eol ? `End of life: ${a.eol}.` : "End of life not verified.";
+  if (a.plastic) {
+    if (bifl) return { title: "PACKAGING", status: "clear", word: "BIFL", short: "buy it for life", detail: "Plastic on a buy-it-for-life tool is a one-time cost." };
+    return a.container
+      ? { title: "PACKAGING", status: "warn", word: "⚠ PLASTIC", short: a.containerLabel.toLowerCase(), detail: `${a.containerLabel}. A consumable in plastic: not zero waste. ${end}` }
+      : { title: "PACKAGING", status: "warn", word: "⚠ PLASTIC", short: `plastic ${a.minor}`, detail: `Plastic ${a.minor} only; the plastic doesn't hold the formula. Still not zero waste. ${end}` };
+  }
+  return { title: "PACKAGING", status: "clear", word: "No flags", short: a.material.toLowerCase(), detail: `${what}. ${end}` };
 }
 
 function efficacyLine(r) {

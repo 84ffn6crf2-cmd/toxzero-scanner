@@ -2,7 +2,7 @@
 // Look: light raw photo + frosted glass + navy (tox-zero-brand DEFAULT LOOK).
 // A scan opens a pull-up sheet over the scanner (Yuka pattern): the peek shows the photo, the stamp and the
 // four-pillar ring; pulled up, it shows the pillar bars, the swaptions and every ingredient, each with an ⓘ.
-import { buildData, evaluate, fromOBF, normCode, searchPicks, swapsFor, scanIngredients, findActives, isFoodOnly, INGREDIENT_RULES, EXPLAIN, PILLARS, MECHANISMS } from "./engine.js";
+import { buildData, evaluate, fromOBF, normCode, searchPicks, swapsFor, scanIngredients, findActives, isFoodOnly, cleanInci, INGREDIENT_RULES, EXPLAIN, PILLARS, MECHANISMS } from "./engine.js";
 
 const OBF = "https://world.openbeautyfacts.org";
 const FIELDS = "code,product_name,product_name_en,generic_name,brands,ingredients_text,ingredients_text_en,packaging,packaging_tags,packagings,categories_tags,image_front_small_url,product_type";
@@ -219,6 +219,7 @@ function setSheet(st, animate = true) {
 }
 function openSheet(html) {
   $("#sheetBody").innerHTML = html;
+  setTimeout(() => { if (current?.rows) loadFunctions(current.rows); }, 0);
   const wasClosed = sheet.hidden || sheetState === "closed";
   sheet.hidden = false;
   if (wasClosed) { setSheet("closed", false); void sheet.offsetHeight; }
@@ -297,8 +298,8 @@ function bars(r) {
   return `<h3 class="section">the 4 pillars.</h3><div class="bars glass">${PILLARS.map((pl) => {
     const x = r.card[pl.key];
     return `<div class="bar-row">${icon(pl.icon)}
-      <div><div class="lbl">${pl.label}</div><div class="track ${x.status}"><b></b></div></div>
-      <span class="st">${esc(x.short)}</span>
+      <div class="lbl">${pl.label}</div>
+      <span class="spill ${x.status}">${esc(x.short)}</span>
       <button class="ibtn" type="button" data-info="pillar:${pl.key}" aria-label="About ${pl.label}">${icon("info")}</button></div>`;
   }).join("")}</div>`;
 }
@@ -334,6 +335,64 @@ function inciRows(p, shelf) {
     .sort((a, b) => ORDER[a.c] - ORDER[b.c] || (b.mech ? 1 : 0) - (a.mech ? 1 : 0));
 }
 const ACT = `<span class="act">${icon("flask")}active</span>`;
+
+// What each EU CosIng function means, in plain words (after the EU glossary of ingredient functions).
+const FN_DEF = {
+  ABRASIVE: "Scrubs or polishes. In toothpaste, it cleans the teeth.", ABSORBENT: "Soaks up water or oil.", ANTICAKING: "Keeps powders loose.",
+  ANTICORROSIVE: "Stops the packaging from corroding.", ANTIDANDRUFF: "Fights dandruff.", ANTIFOAMING: "Keeps it from foaming.",
+  ANTIMICROBIAL: "Helps keep microbes on the skin in check.", ANTIOXIDANT: "Slows oxidation, so oils don't go rancid.",
+  ANTIPERSPIRANT: "Cuts sweating.", ANTIPLAQUE: "Helps against plaque.", ANTISEBORRHOEIC: "Helps control oil.", ANTISTATIC: "Cuts static.",
+  ASTRINGENT: "Tightens the skin.", BINDING: "Holds a pressed product together.", BLEACHING: "Lightens hair or skin.",
+  BUFFERING: "Holds the pH steady.", BULKING: "Adds body or dilutes.", CHELATING: "Binds metals so they can't spoil the formula.",
+  CLEANSING: "Cleans.", COLORANT: "Adds colour.", DENATURANT: "Makes alcohol undrinkable.", DEODORANT: "Cuts body odour.",
+  DEPILATORY: "Removes hair.", DETANGLING: "Detangles hair.", EMOLLIENT: "Softens and smooths the skin.",
+  EMULSIFYING: "Lets oil and water mix.", "EMULSION STABILISING": "Keeps oil and water mixed.", EXFOLIATING: "Removes dead skin cells.",
+  "FILM FORMING": "Leaves a thin film on skin, hair or nails.", FLAVOURING: "Adds flavour.", "FOAM BOOSTING": "Boosts lather.",
+  FOAMING: "Makes foam.", FRAGRANCE: "Adds scent.", PERFUMING: "Adds scent.", "GEL FORMING": "Turns the formula into a gel.",
+  "HAIR CONDITIONING": "Makes hair softer, shinier and easier to comb.", "HAIR DYEING": "Dyes hair.", "HAIR FIXING": "Holds a hairstyle.",
+  HUMECTANT: "Pulls in water and holds it.", HYDROTROPE: "Helps other ingredients dissolve.", KERATOLYTIC: "Softens and loosens dead skin.",
+  "LIGHT STABILIZER": "Protects the product from light.", MOISTURISING: "Adds moisture.", "NAIL CONDITIONING": "Conditions nails.",
+  OCCLUSIVE: "Forms a barrier that keeps water in.", OPACIFYING: "Makes the product less see-through.", "ORAL CARE": "Cares for teeth and mouth.",
+  OXIDISING: "Reacts with other ingredients, e.g. to develop hair dye.", PEARLESCENT: "Adds a pearly sheen.", PLASTICISER: "Keeps a film flexible.",
+  PRESERVATIVE: "Stops microbes growing in the product.", PROPELLANT: "Pushes the product out of an aerosol.", REDUCING: "Changes the chemistry of other ingredients or hair.",
+  REFATTING: "Puts lipids back into skin or hair.", REFRESHING: "Feels cool and fresh.", "SKIN CONDITIONING": "Keeps skin in good condition.",
+  "SKIN PROTECTING": "Protects the skin.", SMOOTHING: "Evens out rough spots.", SOLUBILIZING: "Helps other ingredients dissolve.",
+  SOLVENT: "Dissolves other ingredients.", SOOTHING: "Calms the skin.", SURFACTANT: "Cleans, foams or mixes by cutting surface tension.",
+  TANNING: "Darkens skin without the sun.", TONIC: "Leaves skin or hair feeling invigorated.", "UV ABSORBER": "Protects the product from UV.",
+  "UV FILTER": "Filters UV to protect skin.", "VISCOSITY CONTROLLING": "Thickens or thins the formula.", MASKING: "Covers other smells or tastes.",
+};
+// CosIng sub-functions ("SKIN CONDITIONING - HUMECTANT") read as the specific job; scent/denaturant drop out when there's a real job too
+// The EU lists every job an ingredient CAN do in any product; rank the ones that fit this product's shelf first.
+const HAIR_SHELF = /shampoo|conditioner|hairdye|hairstyling|hairtreat|hairbrush/, ORAL_SHELF = /toothpaste|floss|mouthwash|toothbrush/;
+function fnList(raw, shelfId = current?.shelf?.id || "") {
+  let names = [...new Set((raw || []).map((f) => (f.includes(" - ") && !/MISCELLANEOUS/.test(f) ? f.split(" - ").pop() : f.split(" - ")[0]).trim()))];
+  const real = names.filter((f) => !["FRAGRANCE", "PERFUMING", "DENATURANT"].includes(f));
+  if (real.length) names = real;
+  const hair = HAIR_SHELF.test(shelfId), oral = ORAL_SHELF.test(shelfId);
+  const fit = (f) => /HAIR/.test(f) ? (hair ? 2 : -2) : /ORAL|ANTIPLAQUE/.test(f) ? (oral ? 2 : -2) : 0;
+  names = names.map((f, i) => ({ f, i })).sort((x, y) => fit(y.f) - fit(x.f) || x.i - y.i).map((x) => x.f);
+  return names.map((f) => ({ name: f.toLowerCase(), def: FN_DEF[f] || "" }));
+}
+const fnCache = new Map();   // CosIng key → { inci, functions } (null = looked up, no match)
+async function loadFunctions(rows) {
+  if (!data.config.functionsUrl || !rows?.length) return;
+  const keys = [...new Set(rows.map((r) => cleanInci(r.t)))].filter((k) => k && !fnCache.has(k));
+  for (let i = 0; i < keys.length; i += 40) {
+    const chunk = keys.slice(i, i + 40);
+    try {
+      const j = await fetchJSON(`${data.config.functionsUrl}?n=${chunk.map(encodeURIComponent).join("|")}`, 15000);
+      chunk.forEach((k) => fnCache.set(k, j[k] && j[k].inci ? j[k] : null));
+    } catch { return; }
+  }
+  paintFunctions();
+}
+function paintFunctions() {
+  document.querySelectorAll("#sheetBody .ing-row[data-i]").forEach((el) => {
+    const row = current?.rows?.[+el.dataset.i], fn = row && fnCache.get(cleanInci(row.t));
+    const slot = el.querySelector(".fnx");
+    if (slot && fn) slot.textContent = " · " + fnList(fn.functions).slice(0, 2).map((f) => f.name).join(", ");
+  });
+}
 // one stacked bar: how much of the label is red, yellow, green
 function mix(rows) {
   const n = { red: 0, yellow: 0, green: 0 };
@@ -347,12 +406,12 @@ function mix(rows) {
 function ingredients(p, shelf) {
   if (!p?.ingredients) return "";
   const rows = inciRows(p, shelf);
-  const row = ({ t, rule, mech, c }, hidden) => `<div class="ing-row${rule || mech ? "" : " quiet"}"${hidden ? " hidden" : ""}>
-      <div><div class="nm">${esc(t)}${mech ? ACT : ""}</div><div class="lv ${c}"><i></i>${rule ? `${rule.tier === "note" ? "caution" : "flagged"} · ${esc(rule.label)}` : "cleared"}</div></div>
-      ${rule ? `<button class="ibtn" type="button" data-info="rule:${rule.id}" aria-label="About ${esc(rule.label)}">${icon("info")}</button>`
-        : mech ? `<button class="ibtn" type="button" data-info="mech:${mech.id}" aria-label="How ${esc(mech.label)} works">${icon("info")}</button>` : "<span></span>"}</div>`;
+  if (current) current.rows = rows;
+  const row = ({ t, rule, mech, c }, i, hidden) => `<div class="ing-row${rule || mech ? "" : " quiet"}" data-i="${i}"${hidden ? " hidden" : ""}>
+      <div><div class="nm">${esc(t)}${mech ? ACT : ""}</div><div class="lv ${c}"><i></i><span>${rule ? `${rule.tier === "note" ? "caution" : "flagged"} · ${esc(rule.label)}` : "cleared"}<span class="fnx"></span></span></div></div>
+      <button class="ibtn" type="button" data-info="ing:${i}" aria-label="What ${esc(t)} does">${icon("info")}</button></div>`;
   const shown = Math.max(8, rows.filter((x) => x.rule || x.mech).length);
-  return `<h3 class="section">ingredients.</h3><div class="ing glass">${mix(rows)}${rows.map((x, i) => row(x, i >= shown)).join("")}
+  return `<h3 class="section">ingredients.</h3><div class="ing glass">${mix(rows)}${rows.map((x, i) => row(x, i, i >= shown)).join("")}
     ${rows.length > shown ? `<button class="more-btn" type="button" onclick="this.parentNode.querySelectorAll('.ing-row[hidden]').forEach(e=>e.hidden=false);this.remove()">show all ${rows.length}</button>` : ""}</div>`;
 }
 
@@ -362,6 +421,7 @@ const attrib = (p) => p.source === "obf"
 // ── result sheet ──
 function renderResult(r) {
   current = r;
+  r.rows = null;
   record(r);
   const p = r.product;
   if (r.verdict === "pick") {
@@ -430,6 +490,24 @@ function showInfo(kind, key, from) {
       ${ex.where ? `<div class="blk"><span>WHERE IT HIDES</span><p>${esc(ex.where)}</p></div>` : ""}
       ${ex.instead ? `<div class="blk"><span>WHAT TOX ZERO USES INSTEAD</span><p>${esc(ex.instead)}</p></div>` : ""}
       <p class="src">From the Tox Zero standard.</p>`;
+  } else if (kind === "ing") {
+    const row = current?.rows?.[+key];
+    if (!row) return;
+    const fn = fnCache.get(cleanInci(row.t)), list = fn ? fnList(fn.functions) : [];
+    const ex = row.rule ? EXPLAIN[row.rule.id] || {} : {};
+    const status = row.rule ? (row.rule.tier === "note" ? `CAUTION · ${row.rule.label}` : `FLAGGED · ${row.rule.label}`) : "CLEARED";
+    html = `${from ? `<button class="info-back" type="button" data-info="pillar:ingredients">${icon("back")}all ingredients</button>` : ""}
+      <h4>${esc(row.t)}</h4>
+      <div class="tierline"><span class="lv ${row.c}"><i></i></span>${esc(status.toUpperCase())}</div>
+      <div class="blk"><span>WHAT IT'S USED FOR</span>${list.length
+        ? `<ul class="fnl">${list.map((f) => `<li><b>${esc(f.name)}</b>${f.def ? ` ${esc(f.def)}` : ""}</li>`).join("")}</ul>`
+        : `<p>${fnCache.has(cleanInci(row.t)) ? "Not in the EU ingredient database under this name (often a common or marketing name)." : "Looking it up…"}</p>`}</div>
+      ${row.mech ? `<div class="blk"><span>HOW IT WORKS</span><p>${esc(row.mech.how)}</p></div>` : ""}
+      ${row.rule ? `<div class="blk"><span>THE CONCERN</span><p>${esc(row.rule.why)}</p></div>
+        ${ex.where ? `<div class="blk"><span>WHERE IT HIDES</span><p>${esc(ex.where)}</p></div>` : ""}
+        ${ex.instead ? `<div class="blk"><span>WHAT TOX ZERO USES INSTEAD</span><p>${esc(ex.instead)}</p></div>` : ""}` : ""}
+      <p class="src">Functions: EU CosIng ingredient database${fn?.inci && fn.inci !== cleanInci(row.t) ? ` (${esc(fn.inci)})` : ""}.</p>`;
+    if (!fnCache.has(cleanInci(row.t))) loadFunctions([row]).then(() => { if (!$("#info").hidden) showInfo("ing", key, from); });
   } else if (kind === "mech") {
     const m = MECHANISMS.find((x) => x.id === key);
     const a = current?.efficacy?.actives?.find((x) => x.mech.id === key);
@@ -450,14 +528,14 @@ function showInfo(kind, key, from) {
       <div class="blk"><span>WHAT TOX ZERO CHECKS</span><p>${esc(pl.about)}</p></div>`;
   } else if (key === "ingredients") {
     // the ingredients ⓘ IS the list: every ingredient, red / yellow / green, tap a red or yellow one for its why
-    const pl = PILLARS[0], x = current?.card?.ingredients, rows = inciRows(current?.product, current?.shelf);
+    const pl = PILLARS[0], x = current?.card?.ingredients, rows = current?.rows || inciRows(current?.product, current?.shelf);
     const pickCell = current?.verdict === "pick" ? current.pick.ingredients : "";
     html = `<h4>Ingredients</h4>
       ${x ? `<div class="tierline"><span class="lv ${STATUS_COLOR[x.status]}"><i></i></span>${esc(x.word.toUpperCase())}${x.short ? ` · ${esc(x.short)}` : ""}</div>` : ""}
-      ${rows.length ? `${mix(rows)}<div class="ilist">${rows.map(({ t, rule, mech, c }) => rule
-          ? `<button class="irow" type="button" data-info="rule:${rule.id}" data-from="ingredients"><i class="${c}"></i><span>${esc(t)}</span><em>${esc(rule.label)} ›</em></button>`
-          : mech ? `<button class="irow" type="button" data-info="mech:${mech.id}" data-from="ingredients"><i class="${c}"></i><span>${esc(t)}</span><em>${ACT} ›</em></button>`
-          : `<div class="irow"><i class="${c}"></i><span>${esc(t)}</span></div>`).join("")}</div>`
+      ${rows.length ? `${mix(rows)}<div class="ilist">${rows.map(({ t, rule, mech, c }, i) => {
+          const fn = fnCache.get(cleanInci(t)), job = fn ? fnList(fn.functions).slice(0, 2).map((f) => f.name).join(", ") : "";
+          return `<button class="irow" type="button" data-info="ing:${i}" data-from="ingredients"><i class="${c}"></i><span>${esc(t)}${job ? `<small>${esc(job)}</small>` : ""}</span><em>${rule ? esc(rule.label) + " " : mech ? ACT + " " : ""}›</em></button>`;
+        }).join("")}</div>`
         : pickCell ? `<div class="blk"><span>TOX ZERO VETTED</span><p>${esc(pickCell)}. Every one vetted to the Tox Zero standard.</p></div>`
         : `<div class="blk"><p>No label on file yet, so nothing could be checked.</p></div>`}
       <div class="blk"><span>WHAT TOX ZERO CHECKS</span><p>${esc(pl.about)}</p></div>`;
@@ -618,7 +696,7 @@ async function enrichPick(code, r) {
   if (!p?.ingredients || current !== r) return;
   r.product = { ...r.product, ingredients: p.ingredients, source: "obf", code };
   const box = $("#ingSection");
-  if (box) box.innerHTML = ingredients(r.product, r.shelf) + attrib(r.product);
+  if (box) { box.innerHTML = ingredients(r.product, r.shelf) + attrib(r.product); loadFunctions(r.rows); }
 }
 
 function routePick(id) {
