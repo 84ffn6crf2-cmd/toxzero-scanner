@@ -325,3 +325,9 @@ button.irow { cursor: pointer; font-weight: 700; }
 
 .scope { display: inline-block; margin-top: 4px; font-size: 12px; color: var(--ink-faint); }
 .helpvet .pill.glass { background: rgba(255, 255, 255, .5); }
+
+/* food: one quiet line */
+.foodline { text-align: center; padding: 18px 8px 8px; }
+.foodline .big { font-family: var(--display); font-weight: 700; font-size: 24px; color: var(--ink); margin: 0 0 4px; }
+.foodline p { margin: 0; font-size: 13px; color: var(--ink-soft); }
+.textlink { margin-top: 14px; border: 0; background: none; padding: 4px; font-size: 12px; font-weight: 700; color: var(--ink-soft); text-decoration: underline; cursor: pointer; }

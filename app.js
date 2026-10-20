@@ -385,9 +385,9 @@ function renderFood(p) {
   openSheet(`<div class="peek"><div class="img">${pic(p.image, p.name || "?")}</div>
       <div><div class="brand">${esc((p.brands || []).join(", "))}</div><div class="name">${esc(p.name || "A food product")}</div>
       <span class="stamp unvetted">Food</span></div><span></span></div>
-    <div class="helpvet glass"><b>the best food has no label.</b>
-      <span>Tox Zero reads beauty and personal care. Food? We champion the kind with no ingredient list, from your local farm.</span>
-      <button class="pill glass" type="button" data-intake="${esc(p.code || "")}">Not food? Want it vetted?</button></div>`);
+    <div class="foodline"><p class="big">the best food has no label.</p>
+      <p>Tox Zero reads beauty + personal care.</p>
+      <button class="textlink" type="button" data-intake="${esc(p.code || "")}">Not food? Have it vetted</button></div>`);
 }
 
 // ── ⓘ cards: where you learn the why ──
@@ -631,7 +631,7 @@ function routeStandard() {
   const rules = INGREDIENT_RULES.filter((r) => r.tier !== "note").length;
   const legend = (cls, ico, title, text) => `<div><span class="dot ${cls}">${icon(ico)}</span><span><b>${title}</b><span>${text}</span></span></div>`;
   show(`${back}<div class="std"><h1 class="title">the standard.</h1>
-    <p class="lead">Only the Tox Zero guide says yes.<br><span class="scope">Built for beauty and personal care. The best food comes without a label, from your local farm.</span></p>
+    <p class="lead">Only the Tox Zero guide says yes.<br><span class="scope">Built for beauty + personal care. The best food has no label.</span></p>
     <div class="legend glass">
       ${legend("pass", "check", "Tox Zero pick", "In the guide. Passed all four pillars.")}
       ${legend("fail", "x", "Reject", "Fails a pillar. Here's the swaption.")}
