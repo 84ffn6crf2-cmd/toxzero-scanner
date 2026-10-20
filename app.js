@@ -292,7 +292,7 @@ function swapCards(swaps) {
     return `<a class="swap glass" href="${esc(s.link)}" target="_blank" rel="noopener">
       <div class="pic">${pic(s.image, s.name)}<span class="ok">${icon("check")}Tox Zero pick</span>${s.star ? `<span class="heart"><b>❤︎</b> Andra loves</span>` : ""}</div>
       <span class="n">${esc(s.name)}</span>
-      <span class="mini"><span>${icon("drop")}${icon("check")}</span>${pk}<span>${icon("owner")}${icon("check")}</span><span>${icon("flask")}${icon("check")}</span></span>
+      <span class="mini"><span>${icon("drop")}${icon("check")}</span>${pk}<span>${icon("search")}${icon("check")}</span><span>${icon("flask")}${icon("check")}</span></span>
       <span class="sfoot"><span>${esc(s.price || "")}</span><span class="go">shop ${icon("arrow")}</span></span></a>`;
   }).join("")}</div>`;
 }
@@ -360,7 +360,7 @@ function renderResult(r) {
   if (r.verdict === "reject") {
     return openSheet(`${peek(r, p.name, brand, p.image)}${checked}
       ${r.swaps.length ? `<h3 class="section">the swaptions.</h3>${versus(p, r.swaps[0])}${swapCards(r.swaps)}`
-        : `<p class="note">No guide pick for this shelf yet. It's on the vet list.</p>`}
+        : `<p class="note">No Tox Zero pick for this shelf yet. It's on the vet list.</p>`}
       ${bars(r)}${ingredients(p, r.shelf)}${attrib(p)}`);
   }
   const nothing = !p.source;
@@ -371,9 +371,9 @@ function renderResult(r) {
       : `<div class="helpvet glass"><b>want it vetted?</b><span>Snap the front and the ingredient list. We'll score it, and the next person who scans it sees the result.</span>
       <button class="pill navy" type="button" data-intake="${esc(p.code || "")}">${icon("camera")}Yes, vet it</button></div>`}
     ${r.lookalikes?.length ? `<ul class="list">${r.lookalikes.map((k) => `<li><button class="item glass" type="button" onclick="location.hash='#/g/${esc(k.id)}'">
-      ${pic(k.image, k.name, "thumb")}<span class="txt"><span class="n">The guide's ${esc(k.name)}?</span><span class="m">barcode not confirmed · tap</span></span></button></li>`).join("")}</ul>` : ""}
+      ${pic(k.image, k.name, "thumb")}<span class="txt"><span class="n">The Tox Zero pick ${esc(k.name)}?</span><span class="m">barcode not confirmed · tap</span></span></button></li>`).join("")}</ul>` : ""}
     ${bars(r)}
-    ${shelfSwaps.length ? `<h3 class="section">already vetted.</h3><p class="section-sub">${esc(r.shelf.label.toLowerCase())} picks from the guide</p>${swapCards(shelfSwaps)}` : ""}
+    ${shelfSwaps.length ? `<h3 class="section">already vetted.</h3><p class="section-sub">Tox Zero picks for ${esc(r.shelf.label.toLowerCase())}</p>${swapCards(shelfSwaps)}` : ""}
     ${ingredients(p, r.shelf)}
     ${nothing ? `<a class="pill glass cta" href="#/" onclick="setTimeout(()=>document.querySelector('#searchInput').focus(),50)">${icon("search")}Search by name</a>` : ""}
     ${attrib(p)}`);
@@ -392,9 +392,9 @@ function renderFood(p) {
 
 // ── ⓘ cards: where you learn the why ──
 const TIERLINE = {
-  hard: "HARD LINE · no pick in the guide contains it",
-  dotted: "DOTTED LINE · the guide's picks skip it",
-  note: "HEADS-UP · allowed in a couple of guide picks",
+  hard: "HARD LINE · no Tox Zero pick contains it",
+  dotted: "DOTTED LINE · Tox Zero picks skip it",
+  note: "HEADS-UP · allowed in a couple of Tox Zero picks",
 };
 const STATUS_COLOR = { fail: "red", warn: "yellow", pass: "green", clear: "green", unknown: "grey" };
 function showInfo(kind, key, from) {
@@ -408,8 +408,8 @@ function showInfo(kind, key, from) {
       ${seen ? `<div class="blk"><span>ON THIS LABEL</span><p>${esc(seen.match)}</p></div>` : ""}
       <div class="blk"><span>THE CONCERN</span><p>${esc(rule.why)}</p></div>
       ${ex.where ? `<div class="blk"><span>WHERE IT HIDES</span><p>${esc(ex.where)}</p></div>` : ""}
-      ${ex.instead ? `<div class="blk"><span>WHAT THE GUIDE USES INSTEAD</span><p>${esc(ex.instead)}</p></div>` : ""}
-      <p class="src">From the Tox Zero guide's Nasties pages.</p>`;
+      ${ex.instead ? `<div class="blk"><span>WHAT TOX ZERO USES INSTEAD</span><p>${esc(ex.instead)}</p></div>` : ""}
+      <p class="src">From the Tox Zero standard.</p>`;
   } else if (kind === "mech") {
     const m = MECHANISMS.find((x) => x.id === key);
     const a = current?.efficacy?.actives?.find((x) => x.mech.id === key);
@@ -424,7 +424,7 @@ function showInfo(kind, key, from) {
     const pl = PILLARS[3], x = current?.card?.efficacy, actives = current?.efficacy?.actives || [];
     html = `<h4>Efficacy</h4>
       ${x ? `<div class="tierline"><span class="lv ${STATUS_COLOR[x.status]}"><i></i></span>${esc(x.word.toUpperCase())}</div>
-      <div class="blk"><span>THIS PRODUCT</span><p>${esc(current.verdict === "pick" ? x.detail : x.status === "clear" ? "Actives found. Labels don't print the dose; the Tox Zero guide checks it." : x.detail)}</p></div>` : ""}
+      <div class="blk"><span>THIS PRODUCT</span><p>${esc(current.verdict === "pick" ? x.detail : x.status === "clear" ? "Actives found. Labels don't print the dose; Tox Zero checks it." : x.detail)}</p></div>` : ""}
       ${actives.length ? `<div class="blk"><span>THE ACTIVES</span></div><div class="ilist">${actives.map((a) =>
         `<button class="irow" type="button" data-info="mech:${a.mech.id}" data-from="efficacy"><span class="act">${icon("flask")}</span><span>${esc(a.token)}<small>${esc(a.mech.how)}</small></span><em>›</em></button>`).join("")}</div>` : ""}
       <div class="blk"><span>WHAT TOX ZERO CHECKS</span><p>${esc(pl.about)}</p></div>`;
@@ -438,7 +438,7 @@ function showInfo(kind, key, from) {
           ? `<button class="irow" type="button" data-info="rule:${rule.id}" data-from="ingredients"><i class="${c}"></i><span>${esc(t)}</span><em>${esc(rule.label)} ›</em></button>`
           : mech ? `<button class="irow" type="button" data-info="mech:${mech.id}" data-from="ingredients"><i class="${c}"></i><span>${esc(t)}</span><em>${ACT} ›</em></button>`
           : `<div class="irow"><i class="${c}"></i><span>${esc(t)}</span></div>`).join("")}</div>`
-        : pickCell ? `<div class="blk"><span>FROM THE GUIDE</span><p>${esc(pickCell)}. Every one vetted for the guide.</p></div>`
+        : pickCell ? `<div class="blk"><span>TOX ZERO VETTED</span><p>${esc(pickCell)}. Every one vetted to the Tox Zero standard.</p></div>`
         : `<div class="blk"><p>No label on file yet, so nothing could be checked.</p></div>`}
       <div class="blk"><span>WHAT TOX ZERO CHECKS</span><p>${esc(pl.about)}</p></div>`;
   } else {
@@ -580,7 +580,7 @@ async function routeBarcode(code) {
     paintVetCount();
     return openSheet(`<div class="peek"><div class="img"><div class="ph">?</div></div>
       <div><div class="brand">${esc(code)}</div><div class="name">Saved for later</div><span class="stamp unvetted">${icon("q")}No signal</span></div><span></span></div>
-      <p class="note">It gets scored the moment you're back online. Guide picks still work offline.</p>`);
+      <p class="note">It gets scored the moment you're back online. Tox Zero picks still work offline.</p>`);
   }
   p = p || { code, name: "", brands: [] };
   if (p.vetted === undefined && data.vetted[code]) p.vetted = data.vetted[code];
@@ -608,10 +608,10 @@ function routePick(id) {
 async function routeSearch(q) {
   const local = searchPicks(q, data.picks);
   show(`${back}<h1 class="title" style="font-size:40px;text-align:left;margin-top:8px">${esc(q)}.</h1>
-    <p class="label">IN THE GUIDE</p>
+    <p class="label">TOX ZERO PICKS</p>
     ${local.length ? `<ul class="list">${local.map((k) => `<li><button class="item glass" type="button" onclick="location.hash='#/g/${esc(k.id)}'">
       ${pic(k.image, k.name, "thumb")}<span class="txt"><span class="n">${esc(k.name)}</span><span class="m">${esc(k.category)}</span></span>
-      <span class="ok">${icon("check")}</span></button></li>`).join("")}</ul>` : `<p class="empty">No guide pick by that name.</p>`}
+      <span class="ok">${icon("check")}</span></button></li>`).join("")}</ul>` : `<p class="empty">No Tox Zero pick by that name.</p>`}
     <p class="label">EVERYTHING ELSE</p><div id="obfResults"><p class="empty">Searching…</p></div>`);
   let items = [];
   try {
@@ -631,16 +631,16 @@ function routeStandard() {
   const rules = INGREDIENT_RULES.filter((r) => r.tier !== "note").length;
   const legend = (cls, ico, title, text) => `<div><span class="dot ${cls}">${icon(ico)}</span><span><b>${title}</b><span>${text}</span></span></div>`;
   show(`${back}<div class="std"><h1 class="title">the standard.</h1>
-    <p class="lead">Only the Tox Zero guide says yes.<br><span class="scope">Tox Zero scores health and beauty care products and advocates for eating food from your local farm.</span></p>
+    <p class="lead">Only the Tox Zero standard says yes.<br><span class="scope">Tox Zero scores health and beauty care products and advocates for eating food from your local farm.</span></p>
     <div class="legend glass">
-      ${legend("pass", "check", "Tox Zero pick", "In the guide. Passed all four pillars.")}
+      ${legend("pass", "check", "Tox Zero pick", "Meets the Tox Zero standard on all four pillars.")}
       ${legend("fail", "x", "Reject", "Fails a pillar. Here's the swaption.")}
       ${legend("unknown", "q", "Not vetted yet", "Everything else. No flags isn't a yes.")}
     </div>
     <p class="label">THE 4 PILLARS</p>
     <div class="legend glass">${PILLARS.map((pl) => legend("clear", pl.icon, pl.label, pl.about)).join("")}</div>
     <div class="stats">
-      <div class="glass"><b>${data.picks.length}</b><span>guide picks</span></div>
+      <div class="glass"><b>${data.picks.length}</b><span>Tox Zero picks</span></div>
       <div class="glass"><b>${Object.keys(data.barcodes).length}</b><span>barcodes confirmed with brands</span></div>
       <div class="glass"><b>${rules}</b><span>ingredient rules</span></div>
       <div class="glass"><b>${data.ownerIndex.idx.size}</b><span>brand names checked for ownership</span></div>
@@ -649,17 +649,17 @@ function routeStandard() {
 
 function routeVet() {
   const list = vet.all(), subs = intake.all(), pend = pending.all();
-  show(`${back}<h1 class="title">vet list.</h1><p class="sub">Not in the guide yet. We're on it.</p>
+  show(`${back}<h1 class="title">vet list.</h1><p class="sub">Not vetted yet. We're on it.</p>
     ${subs.length ? `<p class="label">SENT TO BE VETTED</p><ul class="list">${subs.map((x) => `<li><div class="item glass">${pic(x.front, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name || "Unnamed")}</span>
       <span class="m">${esc([x.brand, x.material, x.code].filter(Boolean).join(" · "))}${x.label ? " · label photo" : ""}${x.sent ? " · sent" : " · on this phone"}</span></span></div></li>`).join("")}</ul>` : ""}
     ${pend.length ? `<p class="label">SAVED WITHOUT SIGNAL</p><ul class="list">${pend.map((x) => `<li><button class="item glass" type="button" onclick="location.hash='#/p/${esc(x.code)}'">
       ${pic(x.image, x.name || "?", "thumb")}<span class="txt"><span class="n">${esc(x.name || x.code)}</span>
       <span class="m">${x.verdict ? { pick: "Tox Zero pick", reject: "Reject", unvetted: "Not vetted yet", food: "Food" }[x.verdict] : "waiting for signal"} · ${esc(x.at)}</span></span></button></li>`).join("")}</ul>` : ""}
-    <p class="label">SCANNED, NOT IN THE GUIDE</p>
+    <p class="label">SCANNED, NOT VETTED YET</p>
     ${list.length ? `<ul class="list">${list.map((x) => `<li><div class="item glass">${pic(x.image, x.name, "thumb")}<span class="txt"><span class="n">${esc(x.name)}</span>
       <span class="m">${esc([x.brand, x.code, x.at].filter(Boolean).join(" · "))}</span></span></div></li>`).join("")}</ul>
       <div class="row"><button class="pill glass" type="button" id="copyVet">Copy list</button><button class="pill glass" type="button" id="clearVet">Clear</button></div>`
-    : `<p class="empty" style="text-align:center">Empty. Scan something the guide hasn't covered.</p>`}`);
+    : `<p class="empty" style="text-align:center">Empty. Scan something Tox Zero hasn't vetted yet.</p>`}`);
   $("#copyVet")?.addEventListener("click", async (e) => {
     const text = list.map((x) => [x.name, x.brand, x.code, x.at].filter(Boolean).join(" · ")).join("\n");
     try { await navigator.clipboard.writeText(text); e.target.textContent = "Copied"; } catch { e.target.textContent = "Copy failed"; }

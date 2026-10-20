@@ -78,11 +78,11 @@ export const INGREDIENT_RULES = [
     why: "Can co-occur with asbestos, and the brand doesn't have to prove it doesn't." },
   { id: "propellant", tier: "dotted", label: "Aerosol propellant",
     re: /\b(butane|isobutane|propane|hydrofluorocarbon|hfc-?152a|dimethyl ether)\b/,
-    why: "Aerosols put VOCs right in your breathing zone. No aerosol made the guide." },
+    why: "Aerosols put VOCs right in your breathing zone. No aerosol is a Tox Zero pick." },
   { id: "hexanediol", tier: "note", label: "1,2-Hexanediol", re: /1,2-hexanediol/,
-    why: "A compromise the guide allows in two picks. Long-term data is thin." },
+    why: "A compromise Tox Zero allows in two picks. Long-term data is thin." },
   { id: "tocoacetate", tier: "note", label: "Tocopheryl acetate", re: /tocopheryl acetate/,
-    why: "Synthetic vitamin E. A compromise the guide allows in two picks." },
+    why: "Synthetic vitamin E. A compromise Tox Zero allows in two picks." },
 ];
 
 // ⓘ explainers. "where" = the PRODUCTS column of the guide's Nasties pages (pp. 122–124 of the live PDF);
@@ -90,7 +90,7 @@ export const INGREDIENT_RULES = [
 export const EXPLAIN = {
   fragrance: { where: "Almost everything scented, including \"unscented\" (masking)", instead: "Brands that list every essential oil by name" },
   flavor: { where: "Toothpaste, lip balm, mouthwash", instead: "Brands that list every flavor oil by name" },
-  parabens: { where: "Shampoo, lotion, makeup, deodorant", instead: "The class is easy to replace, so the guide replaces it" },
+  parabens: { where: "Shampoo, lotion, makeup, deodorant", instead: "The class is easy to replace, so Tox Zero replaces it" },
   phthalates: { where: "Synthetic fragrance, nail polish, vinyl packaging" },
   formaldehyde: { where: "Nail polish, hair treatments, eyelash glue, some preservatives" },
   oxybenzone: { where: "Chemical sunscreens, SPF lip balms, SPF foundations", instead: "Mineral SPF" },
@@ -213,7 +213,7 @@ export function efficacyCheck(product, tokens, shelf) {
   }
   if (actives.length) {
     return { status: "clear", short: actives.slice(0, 2).map((a) => a.mech.label.toLowerCase()).join(" + "), actives,
-      detail: actives.map((a) => `${a.token}: ${a.mech.how}`).join(" ") + " Labels don't print the dose; the Tox Zero guide checks it." };
+      detail: actives.map((a) => `${a.token}: ${a.mech.how}`).join(" ") + " Labels don't print the dose; Tox Zero checks it." };
   }
   return { status: "unknown", short: "no active claim", actives, detail: "No hero active on this label for the scanner to check." };
 }
@@ -221,13 +221,13 @@ export function efficacyCheck(product, tokens, shelf) {
 // The four pillars of the Tox Zero Standard (the guide's own page), in display order.
 export const PILLARS = [
   { key: "ingredients", label: "Ingredients", icon: "drop",
-    about: "Checked against the guide's Nasties. Hard lines: no pick contains them. Dotted lines: picks skip them. Every flag names the exact ingredient on the label." },
+    about: "Checked against the Tox Zero Nasties. Hard lines: no Tox Zero pick contains them. Dotted lines: picks skip them. Every flag names the exact ingredient on the label." },
   { key: "packaging", label: "Packaging", icon: "bottle",
     about: "Packaging is part of the formula. Oils pull plastic additives out of the container and into the product. A consumable in plastic is never zero waste. End of life shows only when it's on record." },
-  { key: "owner", label: "Transparency", icon: "owner",
-    about: "Who gets the money. Brands owned by conglomerates that profit from the products the guide replaces fail, and so do the brands on the guide's Wall of Claim. Good owners pass." },
+  { key: "owner", label: "Transparency", icon: "search",
+    about: "Who gets the money. Brands owned by conglomerates that profit from the products Tox Zero replaces fail, and so do the brands on the Tox Zero Wall of Claim. Good owners pass." },
   { key: "efficacy", label: "Efficacy", icon: "flask",
-    about: "Clean isn't the finish line; function is. Efficacy is the science of the mechanism: does what's in it do what the label claims, at a dose that works? Below 1%, label order is arbitrary, and a hero active listed there is label decoration. The scanner names each active and how it works, and catches a claim the formula can't back. The guide checks the dose." },
+    about: "Clean isn't the finish line; function is. Efficacy is the science of the mechanism: does what's in it do what the label claims, at a dose that works? Below 1%, label order is arbitrary, and a hero active listed there is label decoration. The scanner names each active and how it works, and catches a claim the formula can't back. Tox Zero checks the dose." },
 ];
 
 // Split an INCI list on top-level commas/semicolons, keeping "1,2-hexanediol" and (parenthesised, parts) whole.
@@ -377,7 +377,7 @@ export function packagingReasons(product, tokens, shelf, picks) {
   const bifl = (shelf && shelf.bifl) || BIFL_NAME.test(product.name || "");
   const out = [];
   if (/aerosol/i.test(pkg)) out.push({ type: "packaging", label: "Aerosol format", tier: "dotted",
-    detail: "Aerosols put VOCs right in your breathing zone. No aerosol made the guide." });
+    detail: "Aerosols put VOCs right in your breathing zone. No aerosol is a Tox Zero pick." });
   if (bifl || !PLASTIC.test(pkg)) return { reasons: out, plastic: PLASTIC.test(pkg), bifl };
   const fatty = tokens.slice(0, 3).some((t) => FATTY.test(t)) || FATTY_FORMAT.test(product.name || "");
   if (fatty) {
@@ -385,7 +385,7 @@ export function packagingReasons(product, tokens, shelf, picks) {
       detail: "Packaging is part of the formula. Oils and waxes pull plastic additives (2,4-DTBP, benzophenone) out of the container and into the product." });
   } else if (shelf && shelfPicks(shelf, picks).some((p) => !p.plastic && !p.plastic_part)) {
     out.push({ type: "packaging", label: "Plastic packaging", tier: "hard",
-      detail: `The guide has plastic-free picks for ${shelf.label.toLowerCase()}.` });
+      detail: `Tox Zero has plastic-free picks for ${shelf.label.toLowerCase()}.` });
   }
   return { reasons: out, plastic: true, bifl };
 }
@@ -412,7 +412,7 @@ function ingredientsLine(r, tokens) {
     const n = (cell.match(/^\d+/) || [])[0];
     const made = n ? `${n} ingredients${cell.replace(/^\d+/, "").trim() ? ` · ${cell.replace(/^\d+\s*/, "")}` : ""}` : cell;
     return { title: n || !cell ? "INGREDIENTS" : "MADE OF", status: "pass", word: "Vetted",
-      short: n ? `${n} ingredients` : "vetted", detail: made ? `${made}. In the Tox Zero guide.` : "In the Tox Zero guide." };
+      short: n ? `${n} ingredients` : "vetted", detail: made ? `${made}. Meets the Tox Zero standard.` : "Meets the Tox Zero standard." };
   }
   const bad = r.reasons.filter((x) => x.type === "ingredient");
   if (bad.length) {
@@ -466,7 +466,7 @@ function efficacyLine(r) {
 }
 
 function ownerLine(r) {
-  if (r.verdict === "pick") return { title: "TRANSPARENCY", status: "pass", word: "Vetted", short: "vetted", detail: "Checked when it was vetted for the guide." };
+  if (r.verdict === "pick") return { title: "TRANSPARENCY", status: "pass", word: "Vetted", short: "vetted", detail: "Checked when it was vetted to the Tox Zero standard." };
   const o = r.reasons.find((x) => x.type === "owner");
   if (o) {
     const wall = /Wall of Claim/.test(o.label);
@@ -586,9 +586,9 @@ export function evaluate(product, data) {
   const owner = findOwner(product, data.ownerIndex);
   if (owner && owner.kind === "owner") {
     reasons.unshift({ type: "owner", label: `Owned by ${owner.owner}${owner.since ? ` since ${owner.since}` : ""}`, tier: "hard",
-      detail: "A conglomerate that profits from the products the guide replaces." });
+      detail: "A conglomerate that profits from the products Tox Zero replaces." });
   } else if (owner && owner.kind === "wall") {
-    reasons.unshift({ type: "owner", label: `${owner.brand}: on the guide's Wall of Claim`, tier: "hard", detail: owner.reason });
+    reasons.unshift({ type: "owner", label: `${owner.brand}: on the Tox Zero Wall of Claim`, tier: "hard", detail: owner.reason });
   } else if (owner && owner.kind === "pass") {
     notes.push({ type: "owner", label: `Owned by ${owner.owner}`, detail: owner.note });
   }
