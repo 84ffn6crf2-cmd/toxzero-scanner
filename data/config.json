@@ -1,6 +1,0 @@
-{
- "_about": "Vet queue (Cloudflare Worker in vet-queue/, on Andra's account). intakeUrl: where \"want it vetted?\" submissions are POSTed. vettedUrl: prefix for the team's published score by barcode.",
- "intakeUrl": "https://toxzero-vet-queue.toxzero-vet-queue.workers.dev/submit",
- "vettedUrl": "https://toxzero-vet-queue.toxzero-vet-queue.workers.dev/vetted/",
- "functionsUrl": "https://toxzero-vet-queue.toxzero-vet-queue.workers.dev/functions"
-}
